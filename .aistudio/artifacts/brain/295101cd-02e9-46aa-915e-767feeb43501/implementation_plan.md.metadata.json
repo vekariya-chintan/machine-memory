@@ -1,6 +1,0 @@
-{
-  "summary": "Complete architectural plan and step-by-step deployment guide for moving sensitive secrets (Gemini API Key, Session Secret) to Google Cloud Secret Manager, configuring GitHub repository hygiene (.gitignore, workflow secrets), and orchestrating multi-environment execution across Local Development, Google AI Studio, and Google Cloud Run.",
-  "updatedAt": "2026-10-14T16:12:54.504732212Z",
-  "requestFeedback": true,
-  "userFacing": true
-}

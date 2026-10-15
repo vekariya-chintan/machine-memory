@@ -47,7 +47,6 @@ COPY --from=builder /app/public ./public
 # Copy server and necessary configurations
 COPY server.ts ./
 COPY tsconfig.json ./
-COPY firebase-applet-config.json* ./
 COPY firebase-blueprint.json* ./
 
 # Non-root user for security hardening

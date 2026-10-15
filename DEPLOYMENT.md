@@ -147,9 +147,24 @@ git push -u origin main
 
 ---
 
-## 7. Step 6: Deploying to Google Cloud Run
+## 7. Step 6: Deploying to Google Cloud Run with Secret Manager
 
-Deploy directly from your project directory using Google Cloud Build and Cloud Run with the `--set-secrets` flag:
+In Google Cloud Run, both your backend secrets and Firebase configuration parameters can be mapped from Google Cloud Secret Manager.
+
+### Option A: Create Secret for Firebase Configuration
+```bash
+# 1. Create a secret containing your Firebase client parameters
+gcloud secrets create FIREBASE_API_KEY --replication-policy="automatic"
+echo -n "AIzaSyA_iLOEDSoDGSRiIjFd1wGW7UutmM_ax78" | gcloud secrets versions add FIREBASE_API_KEY --data-file=-
+
+# 2. Grant Cloud Run access
+gcloud secrets add-iam-policy-binding FIREBASE_API_KEY \
+  --member="serviceAccount:${RUN_SERVICE_ACCOUNT}" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+### Option B: Deploy with Combined Secrets & Environment Variables
+Deploy directly from your project directory using Google Cloud Build and Cloud Run:
 
 ```bash
 # Deploy unified container to Cloud Run with automatic Secret Manager injection:
@@ -158,15 +173,16 @@ gcloud run deploy promptnova-machinememory \
   --region asia-southeast1 \
   --platform managed \
   --allow-unauthenticated \
-  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,SESSION_SECRET=SESSION_SECRET:latest" \
-  --set-env-vars="NODE_ENV=production"
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,SESSION_SECRET=SESSION_SECRET:latest,VITE_FIREBASE_API_KEY=FIREBASE_API_KEY:latest" \
+  --set-env-vars="NODE_ENV=production,VITE_FIREBASE_PROJECT_ID=smiling-agility-vxtlg,VITE_FIREBASE_APP_ID=1:567344177413:web:55807dda85b5361d60176c,VITE_FIREBASE_AUTH_DOMAIN=smiling-agility-vxtlg.firebaseapp.com,VITE_FIREBASE_STORAGE_BUCKET=smiling-agility-vxtlg.firebasestorage.app,VITE_FIREBASE_DATABASE_ID=ai-studio-295101cd-02e9-46aa-915e-767feeb43501,VITE_FIREBASE_MESSAGING_SENDER_ID=567344177413"
 ```
 
 ### What Happens Behind the Scenes:
-1. Cloud Build compiles the multi-stage `Dockerfile`.
+1. Cloud Build compiles the multi-stage `Dockerfile` (with zero references to `firebase-applet-config.json`).
 2. Vite builds the React production frontend into `dist/`.
-3. Cloud Run spins up the container and maps the latest Secret Manager versions directly into `process.env.GEMINI_API_KEY` and `process.env.SESSION_SECRET`.
-4. Cloud Run gives you a live HTTPS URL (e.g. `https://promptnova-machinememory-xyz-as.a.run.app`).
+3. Cloud Run spins up the container and maps the Secret Manager versions directly into `process.env`.
+4. The backend exposes `/api/config/firebase` so the frontend can retrieve runtime parameters if needed.
+5. Cloud Run gives you a live HTTPS URL (e.g. `https://promptnova-machinememory-xyz-as.a.run.app`).
 
 ### Verify Deployment:
 Check the health-check endpoint:
@@ -181,7 +197,8 @@ Expected response:
   "environment": "production",
   "secretsStatus": {
     "geminiApiKeyConfigured": true,
-    "sessionSecretConfigured": true
+    "sessionSecretConfigured": true,
+    "firebaseConfigured": true
   }
 }
 ```
@@ -190,10 +207,10 @@ Expected response:
 
 ## 8. Step 7: Connecting with Firebase
 
-### A. Firestore Database
-The application is pre-configured with Firestore database `ai-studio-295101cd-02e9-46aa-915e-767feeb43501`.
-Client-facing Firebase configuration (`firebase-applet-config.json`) contains public client identifiers (`apiKey`, `projectId`, `appId`). In Firebase:
-- The `apiKey` in `firebase-applet-config.json` is a public client identification key, NOT an administrative secret.
+### A. Firestore Database & Storage
+The application connects to Firestore database `ai-studio-295101cd-02e9-46aa-915e-767feeb43501` and Firebase Storage bucket `smiling-agility-vxtlg.firebasestorage.app`.
+- **Zero Static Config Files**: `firebase-applet-config.json` has been eliminated from the repository.
+- **Environment Driven**: `src/lib/firebase.ts` dynamically reads all connection details from `import.meta.env.VITE_FIREBASE_*` (loaded locally from `.env` and in cloud from container environment).
 - Database access is strictly governed by `firestore.rules`.
 - Make sure to deploy rules if modified:
   ```bash
@@ -263,8 +280,8 @@ jobs:
             --region asia-southeast1 \
             --platform managed \
             --allow-unauthenticated \
-            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,SESSION_SECRET=SESSION_SECRET:latest" \
-            --set-env-vars="NODE_ENV=production"
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,SESSION_SECRET=SESSION_SECRET:latest,VITE_FIREBASE_API_KEY=FIREBASE_API_KEY:latest" \
+            --set-env-vars="NODE_ENV=production,VITE_FIREBASE_PROJECT_ID=smiling-agility-vxtlg,VITE_FIREBASE_APP_ID=1:567344177413:web:55807dda85b5361d60176c,VITE_FIREBASE_AUTH_DOMAIN=smiling-agility-vxtlg.firebaseapp.com,VITE_FIREBASE_STORAGE_BUCKET=smiling-agility-vxtlg.firebasestorage.app,VITE_FIREBASE_DATABASE_ID=ai-studio-295101cd-02e9-46aa-915e-767feeb43501,VITE_FIREBASE_MESSAGING_SENDER_ID=567344177413"
 ```
 
 Add your service account key as a secret named `GCP_SA_KEY` in GitHub (Settings > Secrets and variables > Actions).
@@ -279,4 +296,8 @@ Add your service account key as a secret named `GCP_SA_KEY` in GitHub (Settings 
 | `SESSION_SECRET` | `.env` file | Env / Default Key | Secret Manager (`--set-secrets`) | Never stored |
 | `PORT` | `3000` | `3000` | `8080` (auto-set) | `.env.example` |
 | `NODE_ENV` | `development` | `development` | `production` | Default in Docker |
-| Firebase Client Config | `firebase-applet-config.json` | `firebase-applet-config.json` | `firebase-applet-config.json` | Safe (governed by rules) |
+| `VITE_FIREBASE_API_KEY` | `.env` file | `.env` / Process Env | Secret Manager / Env | `.env.example` (template) |
+| `VITE_FIREBASE_PROJECT_ID`| `.env` file | `.env` / Process Env | Cloud Run Env | `.env.example` (template) |
+| `VITE_FIREBASE_STORAGE_BUCKET`| `.env` file | `.env` / Process Env | Cloud Run Env | `.env.example` (template) |
+| `firebase-applet-config.json` | Removed | Removed | Removed | Ignored in `.gitignore` |
+

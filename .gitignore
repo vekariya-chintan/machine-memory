@@ -1,4 +1,5 @@
 node_modules/
+.aistudio
 build/
 dist/
 coverage/
@@ -14,6 +15,7 @@ coverage/
 *service-account*.json
 *credentials*.json
 secrets/
+firebase-applet-config.json
 
 # IDE & OS Metadata
 .vscode/

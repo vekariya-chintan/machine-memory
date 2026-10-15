@@ -1,15 +1,44 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeApp, getApps, getApp, FirebaseOptions } from 'firebase/app';
+import { getFirestore, doc, getDocFromServer, Firestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
+// Read Firebase Web configuration from Vite client environment variables (VITE_FIREBASE_*)
+const env = import.meta.env;
+
+const projectId = env.VITE_FIREBASE_PROJECT_ID || 'smiling-agility-vxtlg';
+const apiKey = env.VITE_FIREBASE_API_KEY || 'AIzaSyA_iLOEDSoDGSRiIjFd1wGW7UutmM_ax78';
+const appId = env.VITE_FIREBASE_APP_ID || '1:567344177413:web:55807dda85b5361d60176c';
+const authDomain = env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`;
+const storageBucket = env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`;
+const messagingSenderId = env.VITE_FIREBASE_MESSAGING_SENDER_ID || '567344177413';
+const measurementId = env.VITE_FIREBASE_MEASUREMENT_ID || undefined;
+const firestoreDatabaseId = env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-295101cd-02e9-46aa-915e-767feeb43501';
+
+const firebaseConfig: FirebaseOptions = {
+  apiKey,
+  authDomain,
+  projectId,
+  storageBucket,
+  messagingSenderId,
+  appId,
+  measurementId,
+};
+
+// Initialize Firebase App instance
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+// Initialize Firestore with specific Database ID
+export const db: Firestore =
+  firestoreDatabaseId && firestoreDatabaseId !== '(default)'
+    ? getFirestore(app, firestoreDatabaseId)
+    : getFirestore(app);
 
-export const auth = getAuth(app);
+// Initialize Firebase Auth
+export const auth: Auth = getAuth(app);
+
+// Initialize Firebase Storage
+export const storage: FirebaseStorage = getStorage(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -58,7 +87,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Connectivity verification per skill
+// Connectivity verification per Firebase integration guidelines
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -74,4 +103,3 @@ export async function testFirestoreConnection(): Promise<boolean> {
 }
 
 testFirestoreConnection().catch(() => {});
-
