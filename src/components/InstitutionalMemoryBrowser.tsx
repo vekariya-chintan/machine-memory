@@ -267,7 +267,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               title="Add a new technician heuristic or OEM tip to the knowledge base"
             >
               <Plus className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-              <span>+ ADD NEW KNOWLEDGE &amp; TIP</span>
+              <span>ADD NEW KNOWLEDGE &amp; TIP</span>
             </button>
           </div>
 
@@ -283,7 +283,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ ADD NEW KNOWLEDGE &amp; TIP</span>
+                <span>ADD NEW KNOWLEDGE &amp; TIP</span>
               </button>
             </div>
           ) : (

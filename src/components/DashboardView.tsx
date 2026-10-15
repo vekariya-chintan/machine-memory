@@ -157,18 +157,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800/80 text-cyan-400 text-xs font-mono font-bold uppercase mb-3 tracking-wider">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          Connecting to Cloud Firestore
+          Connecting to database...
         </div>
         <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
           Retrieving Fleet Machinery & Institutional Memory
         </h2>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-lg mb-6 font-mono leading-relaxed">
-          Querying remote Firestore collections (<span className="text-cyan-300">machines</span>, <span className="text-cyan-300">incidents</span>, <span className="text-cyan-300">knowledge</span>). Stand by while database connection is verified...
-        </p>
-        <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
-          <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <span>Synchronizing live database state</span>
-        </div>
       </div>
     );
   }

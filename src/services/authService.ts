@@ -100,7 +100,7 @@ export async function authenticateTechnician(
     if (!matchingDoc) {
       return {
         success: false,
-        error: 'No registered technician found with this email in the database.',
+        error: 'Invalid email or password.',
       };
     }
 
@@ -114,7 +114,7 @@ export async function authenticateTechnician(
       if (storedHash !== enteredHash) {
         return {
           success: false,
-          error: 'Incorrect password. Verification against database credentials failed.',
+          error: 'Invalid email or password.',
         };
       }
     } else {

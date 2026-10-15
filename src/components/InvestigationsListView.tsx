@@ -250,15 +250,6 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
                 In Progress
               </button>
             </div>
-
-            {/* Second New Incident Investigation Button */}
-            <button
-              onClick={() => onStartNewInvestigation(activeMachineId !== 'ALL' ? activeMachineId : 'M001')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-colors shadow-md shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>NEW INCIDENT INVESTIGATION</span>
-            </button>
           </div>
         </div>
 

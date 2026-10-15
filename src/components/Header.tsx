@@ -171,7 +171,6 @@ export const Header: React.FC<HeaderProps> = ({
               title="Firestore central database connection status"
             >
               <Database className={`w-3.5 h-3.5 shrink-0 ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
-              <span className="text-slate-400 hidden lg:inline">DB:</span>
               <span className={`text-[10px] sm:text-[11px] font-semibold ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {isFirestoreConnected ? 'CONNECTED' : 'DISCONNECTED'}
               </span>
@@ -288,7 +287,7 @@ export const Header: React.FC<HeaderProps> = ({
                       title="Return to list of all investigations"
                     >
                       <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden md:inline">← ALL INVESTIGATIONS</span>
+                      <span className="hidden md:inline">ALL INVESTIGATIONS</span>
                       <span className="md:hidden">← ALL</span>
                     </button>
                   )}
@@ -352,15 +351,6 @@ export const Header: React.FC<HeaderProps> = ({
                     Chronologically descending by creation date
                   </span>
                 </div>
-                {onStartNewInvestigation && (
-                  <button
-                    onClick={onStartNewInvestigation}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-extrabold text-xs transition-all shadow-md shadow-cyan-500/20 cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>NEW INCIDENT INVESTIGATION</span>
-                  </button>
-                )}
               </div>
             )}
           </nav>

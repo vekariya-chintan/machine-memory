@@ -627,7 +627,7 @@ export default function App() {
                     title="Return to the full list of all investigations"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>← ALL INVESTIGATIONS</span>
+                    <span>ALL INVESTIGATIONS</span>
                   </button>
                   <span className="text-slate-600 hidden sm:inline">|</span>
                   <span className="text-slate-300 font-semibold truncate">
