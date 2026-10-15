@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import crypto from 'crypto';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import {
   SEED_MACHINES,
   SEED_INCIDENTS,

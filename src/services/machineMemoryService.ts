@@ -26,8 +26,6 @@ import {
   SEED_EVIDENCE,
 } from '../db/seedData';
 
-export { SEED_MACHINES, SEED_INCIDENTS, SEED_KNOWLEDGE, SEED_TECHNICIANS, SEED_EVIDENCE };
-
 /**
  * Recursively removes all `undefined` values from an object or array before passing to Firestore setDoc/updateDoc
  */
@@ -153,7 +151,7 @@ export async function executeFirebaseBlueprint(): Promise<{
 
 /**
  * Verifies Firestore database connection on boot.
- * Does not perform automatic seeding. Use `npm run seed` or POST /api/db/seed when initial data population is needed.
+ * Does not perform automatic seeding. Use `npm run seed` when initial data population is needed.
  */
 export async function initializeFirestoreDatabase(): Promise<{ success: boolean; seeded: boolean }> {
   try {

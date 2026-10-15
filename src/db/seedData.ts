@@ -3,7 +3,7 @@ import { Machine, Incident, KnowledgeItem, Technician, EvidenceItem } from '../t
 /**
  * Single Master Seed Dataset for MachineMemory Platform
  * Contains baseline records for Machines, Incidents, Knowledge Items, and Technicians.
- * No local code execution auto-seeds this data; populate explicitly using `npm run seed` or `POST /api/db/seed`.
+ * No local code execution auto-seeds this data; populate explicitly using `npm run seed`.
  */
 
 export const SEED_MACHINES: Machine[] = [

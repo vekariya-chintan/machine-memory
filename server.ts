@@ -5,13 +5,6 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
-import {
-  SEED_MACHINES,
-  SEED_INCIDENTS,
-  SEED_KNOWLEDGE,
-  SEED_TECHNICIANS,
-  SEED_EVIDENCE,
-} from './src/db/seedData.js';
 
 dotenv.config();
 
@@ -552,71 +545,20 @@ interface StoredTechnician extends ServerTechnician {
   updated_at?: string;
 }
 
-const DEFAULT_SEED_TECHNICIANS: ServerTechnician[] = [
-  {
-    technician_id: 'TECH-01',
-    name: 'Marcus Vance',
-    email: 'marcus.vance@promptnova.com',
-    role: 'Lead Master Technician',
-    skills: ['Spindle Alignment', 'Vibration Analysis ISO-II', 'Hydraulics', 'CNC Metrology'],
-    experience: 18,
-    shift: 'Day Shift · Automated Machining Lines',
-  },
-  {
-    technician_id: 'TECH-02',
-    name: 'Elena Rostova',
-    email: 'elena.rostova@promptnova.com',
-    role: 'Reliability & Telemetry Engineer',
-    skills: ['SCADA', 'FFT Spectral Analysis', 'ISO 10816-3 Compliance', 'Hydraulic Circuits'],
-    experience: 7,
-    shift: 'Swing Shift · Automated Machining Lines',
-  },
-  {
-    technician_id: 'TECH-03',
-    name: 'David Chen',
-    email: 'david.chen@promptnova.com',
-    role: 'Junior Maintenance Specialist',
-    skills: ['Mechanical LOTO', 'Preventive Maintenance', 'Dial Indicators', 'Coolant Filtration'],
-    experience: 2,
-    shift: 'Day Shift · Plant Utility & Backup Systems',
-  },
-  {
-    technician_id: 'TECH-04',
-    name: 'Chintan Vekariya',
-    email: 'chintanvekariya023@gmail.com',
-    role: 'Plant Operations Director',
-    skills: ['Executive Reliability', 'Autonomous RCA', 'Predictive Fleet Optimization', 'ISO Audits'],
-    experience: 12,
-    shift: 'Plant Operations & Engineering Leadership',
-  },
-];
-
 function loadTechniciansFromDisk(): StoredTechnician[] {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(TECHNICIANS_FILE)) {
+      return [];
     }
-    if (fs.existsSync(TECHNICIANS_FILE)) {
-      const content = fs.readFileSync(TECHNICIANS_FILE, 'utf8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
+    const content = fs.readFileSync(TECHNICIANS_FILE, 'utf8');
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      return parsed;
     }
-    const defaultPassword = process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || '';
-    const defaultHash = crypto.createHash('sha256').update(defaultPassword).digest('hex');
-    const initial: StoredTechnician[] = DEFAULT_SEED_TECHNICIANS.map((t) => ({
-      ...t,
-      password_hash: defaultHash,
-      avatar_url: '',
-      last_login: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    }));
-    fs.writeFileSync(TECHNICIANS_FILE, JSON.stringify(initial, null, 2), 'utf8');
-    return initial;
+    return [];
   } catch (err) {
     console.error('Failed to load technicians from disk:', err);
-    return DEFAULT_SEED_TECHNICIANS.map((t) => ({ ...t }));
+    return [];
   }
 }
 
@@ -914,33 +856,6 @@ app.post('/api/auth/verify', (req: Request, res: Response) => {
     success: true,
     technician: tech,
   });
-});
-
-// POST /api/db/seed - Manual endpoint to trigger dataset seeder
-app.post('/api/db/seed', (_req: Request, res: Response) => {
-  try {
-    const defaultHash = DEFAULT_TECH_PASSWORD_HASH || crypto.createHash('sha256').update('Pass@123#').digest('hex');
-    TECHNICIANS_REGISTRY = SEED_TECHNICIANS.map((t) => ({
-      ...t,
-      password_hash: defaultHash,
-      updated_at: new Date().toISOString(),
-    }));
-    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
-
-    return res.json({
-      success: true,
-      message: 'Database baseline datasets loaded from src/db/seedData.ts.',
-      counts: {
-        machines: SEED_MACHINES.length,
-        incidents: SEED_INCIDENTS.length,
-        knowledge: SEED_KNOWLEDGE.length,
-        technicians: SEED_TECHNICIANS.length,
-      },
-    });
-  } catch (err: any) {
-    console.error('Seeder endpoint error:', err);
-    return res.status(500).json({ success: false, error: 'Database seeding failed.' });
-  }
 });
 
 // POST /api/auth/logout - Invalidate session

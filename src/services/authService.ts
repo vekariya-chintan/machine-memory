@@ -1,15 +1,9 @@
 import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db, testFirestoreConnection } from '../lib/firebase';
 import { Technician } from '../types/industrial';
-import { SEED_TECHNICIANS } from '../db/seedData';
 
 const SESSION_STORAGE_KEY = 'promptnova_auth_technician';
 const TOKEN_STORAGE_KEY = 'promptnova_auth_token';
-
-/**
- * Baseline technician profiles exported from central seedData module.
- */
-export const DEFAULT_TECHNICIAN_PROFILES = SEED_TECHNICIANS;
 
 /**
  * Computes SHA-256 hash using native Web Crypto API at runtime.
