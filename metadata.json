@@ -1,0 +1,10 @@
+{
+  "name": "MachineMemory",
+  "description": "Autonomous incident investigation and institutional memory system for manufacturing operations. Captures technician knowledge, analyzes multi-sensor telemetry, and diagnoses machine failures.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,24 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Credentials, Private Keys & GCP Service Accounts
+*.pem
+*.key
+*.p12
+*service-account*.json
+*credentials*.json
+secrets/
+
+# IDE & OS Metadata
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+Thumbs.db
+

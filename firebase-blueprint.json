@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "machines": {
+      "title": "Machine",
+      "description": "Industrial machinery profile and baseline telemetry metrics",
+      "type": "object",
+      "properties": {
+        "machine_id": { "type": "string" },
+        "name": { "type": "string" },
+        "model": { "type": "string" },
+        "location": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "status": { "type": "string" },
+        "baseline_metrics": { "type": "object" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["machine_id", "name"]
+    },
+    "incidents": {
+      "title": "Incident",
+      "description": "Logged machine failure incident with sensor snapshot and confirmed root cause",
+      "type": "object",
+      "properties": {
+        "incident_id": { "type": "string" },
+        "machine_id": { "type": "string" },
+        "created_at": { "type": "string" },
+        "symptoms": { "type": "array" },
+        "sensor_snapshot": { "type": "array" },
+        "ai_hypotheses": { "type": "array" },
+        "confirmed_cause": { "type": "string" },
+        "repair": { "type": "string" },
+        "outcome": { "type": "string" },
+        "downtime": { "type": "number" },
+        "status": { "type": "string" },
+        "verified_by": { "type": "string" },
+        "notes": { "type": "string" },
+        "verification_media": { "type": "object" }
+      },
+      "required": ["incident_id", "machine_id"]
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "description": "Technician tribal tip, OEM manual section, or historical post-mortem memory",
+      "type": "object",
+      "properties": {
+        "knowledge_id": { "type": "string" },
+        "machine_id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "source": { "type": "string" },
+        "created_by": { "type": "string" },
+        "confidence": { "type": "number" },
+        "created_at": { "type": "string" },
+        "tags": { "type": "array" },
+        "media": { "type": "object" }
+      },
+      "required": ["knowledge_id", "machine_id", "content"]
+    },
+    "evidence": {
+      "title": "Evidence",
+      "description": "Investigative evidence correlating sensor trends with mechanical failure",
+      "type": "object",
+      "properties": {
+        "evidence_id": { "type": "string" },
+        "incident_id": { "type": "string" },
+        "type": { "type": "string" },
+        "source": { "type": "string" },
+        "content": { "type": "string" },
+        "relevance_score": { "type": "number" }
+      },
+      "required": ["evidence_id", "incident_id"]
+    },
+    "technicians": {
+      "title": "Technician",
+      "description": "Shop floor technician identity, qualifications, and encrypted authentication credentials",
+      "type": "object",
+      "properties": {
+        "technician_id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "password_hash": { "type": "string" },
+        "encrypted_password": { "type": "string" },
+        "role": { "type": "string" },
+        "skills": { "type": "array" },
+        "experience": { "type": "number" },
+        "shift": { "type": "string" },
+        "last_login": { "type": "string" }
+      },
+      "required": ["technician_id", "email"]
+    }
+  },
+  "firestore": {
+    "/machines/{machineId}": {
+      "schema": "machines",
+      "description": "Industrial machinery collection"
+    },
+    "/incidents/{incidentId}": {
+      "schema": "incidents",
+      "description": "Machine failure incidents collection"
+    },
+    "/knowledge/{knowledgeId}": {
+      "schema": "knowledge",
+      "description": "Institutional knowledge and technician tribal insights"
+    },
+    "/evidence/{evidenceId}": {
+      "schema": "evidence",
+      "description": "Investigation evidence records"
+    },
+    "/technicians/{technicianId}": {
+      "schema": "technicians",
+      "description": "Plant technicians directory"
+    }
+  }
+}

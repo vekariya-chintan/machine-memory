@@ -1,0 +1,84 @@
+<svg viewBox="0 0 500 500" width="500" height="500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pn_stem_left" x1="120" y1="120" x2="200" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="60%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <linearGradient id="pn_stem_facet" x1="150" y1="200" x2="230" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+
+    <linearGradient id="pn_loop_grad" x1="150" y1="90" x2="380" y2="290" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="25%" stop-color="#2563eb" />
+      <stop offset="55%" stop-color="#4f46e5" />
+      <stop offset="78%" stop-color="#7c3aed" />
+      <stop offset="92%" stop-color="#9333ea" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+
+    <linearGradient id="pn_swoosh_grad" x1="160" y1="230" x2="400" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="40%" stop-color="#ffffff" />
+      <stop offset="75%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#d946ef" />
+    </linearGradient>
+
+    <radialGradient id="pn_star_glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="40%" stop-color="#e879f9" />
+      <stop offset="100%" stop-color="#9333ea" stop-opacity="0" />
+    </radialGradient>
+
+    <linearGradient id="pn_text_nova" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9333ea" />
+      <stop offset="50%" stop-color="#c026d3" />
+      <stop offset="100%" stop-color="#d946ef" />
+    </linearGradient>
+  </defs>
+
+  <!-- 3D P Emblem -->
+  <g id="emblem">
+    <!-- Outer Glow -->
+    <circle cx="260" cy="200" r="150" fill="url(#pn_star_glow)" opacity="0.1" />
+
+    <!-- Stem Left Bevel -->
+    <path d="M 125 130 L 175 130 L 175 340 L 125 340 Z" fill="url(#pn_stem_left)" />
+    <path d="M 125 130 L 165 95 L 165 305 L 125 340 Z" fill="#0369a1" opacity="0.85" />
+    <path d="M 175 205 L 210 240 L 210 340 L 175 340 Z" fill="url(#pn_stem_facet)" />
+
+    <!-- Main P Loop -->
+    <path d="M 160 95 L 300 95 C 350 95, 390 135, 390 190 C 390 245, 350 280, 295 280 L 215 280 L 215 230 L 285 230 C 315 230, 335 212, 335 188 C 335 160, 315 145, 285 145 L 160 145 Z" fill="url(#pn_loop_grad)" />
+
+    <!-- Inner 3D Shadow -->
+    <path d="M 175 145 L 290 145 C 320 145, 340 162, 340 188 C 340 214, 320 230, 290 230 L 215 230 L 230 245 L 295 245 C 335 245, 360 220, 360 188 C 360 155, 330 130, 290 130 L 175 130 Z" fill="#3b0764" opacity="0.55" />
+
+    <!-- Swoosh Arc -->
+    <path d="M 145 235 C 195 235, 250 210, 310 165 C 345 138, 375 110, 390 85 C 365 105, 320 145, 260 185 C 210 218, 165 230, 145 235 Z" fill="url(#pn_swoosh_grad)" filter="drop-shadow(0 0 8px rgba(255,255,255,0.85))" />
+
+    <!-- Stars -->
+    <g transform="translate(390, 85)">
+      <circle cx="0" cy="0" r="25" fill="url(#pn_star_glow)" opacity="0.65" />
+      <path d="M 0 -32 Q 0 0 32 0 Q 0 0 0 32 Q 0 0 -32 0 Q 0 0 0 -32 Z" fill="#c084fc" />
+      <path d="M 0 -18 Q 0 0 18 0 Q 0 0 0 18 Q 0 0 -18 0 Q 0 0 0 -18 Z" fill="#ffffff" />
+    </g>
+
+    <g transform="translate(310, 125)">
+      <path d="M 0 -12 Q 0 0 12 0 Q 0 0 0 12 Q 0 0 -12 0 Q 0 0 0 -12 Z" fill="#ffffff" />
+    </g>
+    <g transform="translate(360, 155)">
+      <path d="M 0 -10 Q 0 0 10 0 Q 0 0 0 10 Q 0 0 -10 0 Q 0 0 0 -10 Z" fill="#c084fc" />
+    </g>
+    <g transform="translate(405, 130)">
+      <path d="M 0 -9 Q 0 0 9 0 Q 0 0 0 9 Q 0 0 -9 0 Q 0 0 0 -9 Z" fill="#a855f7" />
+    </g>
+  </g>
+
+  <!-- Typography PromptNova -->
+  <text x="250" y="425" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" letter-spacing="-1.5">
+    <tspan fill="#0f172a">Prompt</tspan><tspan fill="url(#pn_text_nova)">Nova</tspan>
+  </text>
+</svg>

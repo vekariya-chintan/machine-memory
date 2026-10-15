@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permit read and write for the manufacturing operations collections
+    match /machines/{machineId} {
+      allow read, write: if true;
+    }
+    match /incidents/{incidentId} {
+      allow read, write: if true;
+    }
+    match /knowledge/{knowledgeId} {
+      allow read, write: if true;
+    }
+    match /evidence/{evidenceId} {
+      allow read, write: if true;
+    }
+    // Secure technicians collection: credentials and profiles are managed server-side
+    match /technicians/{technicianId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
