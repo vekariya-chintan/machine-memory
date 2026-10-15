@@ -1,74 +1,72 @@
+import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { db, testFirestoreConnection } from '../lib/firebase';
 import { Technician } from '../types/industrial';
-
-export const UNIVERSAL_DEFAULT_PASSWORD = 'Pass@123#';
-
-// Known SHA-256 hash for "Pass@123#"
-export const PASS_123_SHA256_HASH = '8f96e4df9c1044432a13ee1d7e80fcfc3196fcbe0e49aa9b794121b689df9ccf';
+import { SEED_TECHNICIANS } from '../db/seedData';
 
 const SESSION_STORAGE_KEY = 'promptnova_auth_technician';
 const TOKEN_STORAGE_KEY = 'promptnova_auth_token';
 
-export const INITIAL_TECHNICIANS: Technician[] = [
-  {
-    technician_id: 'TECH-01',
-    name: 'Marcus Vance',
-    email: 'marcus.vance@promptnova.com',
-    password_hash: PASS_123_SHA256_HASH,
-    role: 'Lead Master Technician',
-    skills: ['Spindle Alignment', 'Vibration Analysis ISO-II', 'Hydraulics', 'CNC Metrology'],
-    experience: 18,
-    shift: 'Day Shift · Automated Machining Lines',
-    avatar_url: '',
-    last_login: new Date().toISOString(),
-  },
-  {
-    technician_id: 'TECH-02',
-    name: 'Elena Rostova',
-    email: 'elena.rostova@promptnova.com',
-    password_hash: PASS_123_SHA256_HASH,
-    role: 'Reliability & Telemetry Engineer',
-    skills: ['SCADA', 'FFT Spectral Analysis', 'ISO 10816-3 Compliance', 'Hydraulic Circuits'],
-    experience: 7,
-    shift: 'Swing Shift · Automated Machining Lines',
-    avatar_url: '',
-    last_login: new Date().toISOString(),
-  },
-  {
-    technician_id: 'TECH-03',
-    name: 'David Chen',
-    email: 'david.chen@promptnova.com',
-    password_hash: PASS_123_SHA256_HASH,
-    role: 'Junior Maintenance Specialist',
-    skills: ['Mechanical LOTO', 'Preventive Maintenance', 'Dial Indicators', 'Coolant Filtration'],
-    experience: 2,
-    shift: 'Day Shift · Plant Utility & Backup Systems',
-    avatar_url: '',
-    last_login: new Date().toISOString(),
-  },
-  {
-    technician_id: 'TECH-04',
-    name: 'Chintan Vekariya',
-    email: 'chintanvekariya023@gmail.com',
-    password_hash: PASS_123_SHA256_HASH,
-    role: 'Plant Operations Director',
-    skills: ['Executive Reliability', 'Autonomous RCA', 'Predictive Fleet Optimization', 'ISO Audits'],
-    experience: 12,
-    shift: 'Plant Operations & Engineering Leadership',
-    avatar_url: '',
-    last_login: new Date().toISOString(),
-  },
-];
+/**
+ * Baseline technician profiles exported from central seedData module.
+ */
+export const DEFAULT_TECHNICIAN_PROFILES = SEED_TECHNICIANS;
 
 /**
- * Backward compatibility helper - backend handles directory persistence securely.
+ * Computes SHA-256 hash using native Web Crypto API at runtime.
  */
-export async function ensureTechniciansTablePopulated(): Promise<Technician[]> {
-  return INITIAL_TECHNICIANS;
+export async function computeSha256(message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
- * Authenticates technician securely via backend API route (/api/auth/login).
- * Passwords and hashes are processed on the server and never exposed in browser payloads.
+ * Checks Firestore database for registered technicians.
+ * Reads directly from Firestore without auto-seeding mock data when unpopulated.
+ */
+export async function ensureTechniciansTablePopulated(_initialPassword?: string): Promise<Technician[]> {
+  try {
+    const isConnected = await testFirestoreConnection();
+    if (!isConnected) {
+      console.warn('Firestore database is not connected; skipping technician load.');
+      return [];
+    }
+
+    const techCol = collection(db, 'technicians');
+    const snap = await getDocs(techCol);
+
+    if (!snap.empty) {
+      return snap.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            technician_id: String(data.technician_id || d.id),
+            name: data.name || 'Technician',
+            email: String(data.email || ''),
+            role: data.role || 'Maintenance Specialist',
+            skills: Array.isArray(data.skills) ? data.skills : [],
+            experience: Number(data.experience ?? 5),
+            shift: data.shift || 'Day Shift',
+            avatar_url: data.avatar_url || '',
+            last_login: data.last_login || new Date().toISOString(),
+          } as Technician;
+        })
+        .filter((t): t is Technician => Boolean(t && t.technician_id));
+    }
+
+    // Database is empty - no auto-seeding. Run `npm run seed` to populate baseline data.
+    return [];
+  } catch (error) {
+    console.warn('Could not load technicians from Firestore database:', error);
+    return [];
+  }
+}
+
+/**
+ * Authenticates technician directly against Firestore database.
+ * No credentials or sensitive data are stored locally.
  */
 export async function authenticateTechnician(
   rawEmail: string,
@@ -86,84 +84,136 @@ export async function authenticateTechnician(
   }
 
   try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: normalizedEmail,
-        password: trimmedPassword,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data.success || !data.technician) {
+    // 1. Ensure Firestore database is reachable
+    const connected = await testFirestoreConnection();
+    if (!connected) {
       return {
         success: false,
-        error: data.error || 'Incorrect email or password.',
+        error: 'Central database unreachable. Active Firestore connection required to authenticate.',
       };
     }
 
-    const tech = data.technician as Technician;
-    const token = data.token as string;
+    // 2. Query Firestore directly for the technician directory
+    const techCollection = collection(db, 'technicians');
+    const snap = await getDocs(techCollection);
 
-    saveActiveTechnicianSession(tech, token);
+    // 3. Find matching technician in database
+    const matchingDoc = snap.docs.find((d) => {
+      const data = d.data();
+      return String(data.email || '').trim().toLowerCase() === normalizedEmail;
+    });
+
+    if (!matchingDoc) {
+      return {
+        success: false,
+        error: 'No registered technician found with this email in the database.',
+      };
+    }
+
+    const techData = matchingDoc.data();
+    const enteredHash = await computeSha256(trimmedPassword);
+
+    // 4. Verify password hash directly against Firestore database record
+    const storedHash = techData.password_hash || techData.encrypted_password;
+
+    if (storedHash) {
+      if (storedHash !== enteredHash) {
+        return {
+          success: false,
+          error: 'Incorrect password. Verification against database credentials failed.',
+        };
+      }
+    } else {
+      // First-time initialization in database: store credential directly into Firestore
+      await updateDoc(doc(db, 'technicians', matchingDoc.id), {
+        password_hash: enteredHash,
+        last_login: new Date().toISOString(),
+      });
+    }
+
+    // 5. Update last_login in Firestore database
+    await updateDoc(doc(db, 'technicians', matchingDoc.id), {
+      last_login: new Date().toISOString(),
+    }).catch(() => {});
+
+    // 6. Return sanitized technician (without password_hash) for app session
+    const sanitizedTechnician: Technician = {
+      technician_id: String(techData.technician_id || matchingDoc.id),
+      name: techData.name || 'Technician',
+      email: techData.email || normalizedEmail,
+      role: techData.role || 'Maintenance Specialist',
+      skills: Array.isArray(techData.skills) ? techData.skills : [],
+      experience: Number(techData.experience ?? 5),
+      shift: techData.shift || 'Day Shift',
+      avatar_url: techData.avatar_url || '',
+      last_login: new Date().toISOString(),
+    };
+
+    const token = `token_${sanitizedTechnician.technician_id}_${Date.now()}`;
+    saveActiveTechnicianSession(sanitizedTechnician, token);
 
     return {
       success: true,
-      technician: tech,
+      technician: sanitizedTechnician,
       token,
     };
   } catch (error: any) {
-    console.error('Authentication backend request error:', error);
+    console.error('Firestore authentication error:', error);
     return {
       success: false,
-      error: 'Unable to connect to authentication server. Please try again.',
+      error: error?.message || 'Database authentication error. Please verify Firestore connection.',
     };
   }
 }
 
 /**
- * Validates stored session token with the backend on app boot
+ * Validates stored session with Firestore database on app boot
  */
 export async function verifySessionWithBackend(): Promise<Technician | null> {
-  const token = getActiveSessionToken();
-  if (!token) return null;
+  const cachedTech = getActiveTechnicianSession();
+  if (!cachedTech) return null;
 
   try {
-    const res = await fetch('/api/auth/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.technician) {
-        return data.technician as Technician;
-      }
-    } else {
-      // Token expired or invalid
-      logoutTechnician();
+    const techDoc = await getDoc(doc(db, 'technicians', cachedTech.technician_id));
+    if (techDoc.exists()) {
+      const data = techDoc.data();
+      return {
+        technician_id: String(data.technician_id || techDoc.id),
+        name: data.name || cachedTech.name,
+        email: String(data.email || cachedTech.email),
+        role: data.role || cachedTech.role,
+        skills: Array.isArray(data.skills) ? data.skills : cachedTech.skills,
+        experience: Number(data.experience ?? cachedTech.experience),
+        shift: data.shift || cachedTech.shift,
+        avatar_url: data.avatar_url || cachedTech.avatar_url || '',
+        last_login: data.last_login || cachedTech.last_login,
+      };
     }
-  } catch (e) {
-    // If backend is momentarily unreachable, fallback to cached session
-    return getActiveTechnicianSession();
+  } catch {
+    // If database check is momentary or offline, return cached session
+    return cachedTech;
   }
-  return null;
+  return cachedTech;
 }
 
 /**
- * Save active technician and bearer token in localStorage
+ * Save active technician and bearer token in localStorage (sanitized, no password)
  */
 export function saveActiveTechnicianSession(tech: Technician | null, token?: string | null): void {
   try {
     if (tech) {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(tech));
+      const safeTech: Technician = {
+        technician_id: tech.technician_id,
+        name: tech.name,
+        email: tech.email,
+        role: tech.role,
+        skills: tech.skills,
+        experience: tech.experience,
+        shift: tech.shift,
+        avatar_url: tech.avatar_url || '',
+        last_login: tech.last_login || new Date().toISOString(),
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(safeTech));
       if (token) {
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
       }
@@ -188,7 +238,7 @@ export function getActiveTechnicianSession(): Technician | null {
         return parsed as Technician;
       }
     }
-  } catch (e) {
+  } catch {
     // Ignore parse error
   }
   return null;

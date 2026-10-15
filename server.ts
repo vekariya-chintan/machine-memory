@@ -1,9 +1,17 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
+import {
+  SEED_MACHINES,
+  SEED_INCIDENTS,
+  SEED_KNOWLEDGE,
+  SEED_TECHNICIANS,
+  SEED_EVIDENCE,
+} from './src/db/seedData.js';
 
 dotenv.config();
 
@@ -191,9 +199,23 @@ function heuristicExtract(rawText: string = '', machineIdDefault: string = 'M001
 // Handler for Extract Audio / Text
 const handleExtract = async (req: Request, res: Response) => {
   try {
-    const { audioBase64, mimeType = 'audio/webm', rawText, machineIdDefault = 'M001' } = req.body;
+    const { audioBase64, mimeType = 'audio/webm', rawText, machineIdDefault = 'M001' } = req.body || {};
 
-    const fallbackResult = heuristicExtract(rawText, machineIdDefault);
+    // Security validation against malicious inputs / script injection
+    const cleanRawText = typeof rawText === 'string' ? rawText.trim() : '';
+    const cleanMachineId = typeof machineIdDefault === 'string' ? machineIdDefault.trim().toUpperCase() : 'M001';
+
+    // Anti-XSS and script injection check
+    const dangerousPatterns = /<[^>]*>|javascript:|on\w+\s*=|__proto__|constructor|\$where/i;
+    if (dangerousPatterns.test(cleanRawText) || dangerousPatterns.test(cleanMachineId)) {
+      return res.status(400).json({ success: false, error: 'Prohibited characters or malicious payload detected in extraction request.' });
+    }
+
+    if (cleanRawText.length > 3000) {
+      return res.status(400).json({ success: false, error: 'Observation text exceeds maximum length of 3000 characters.' });
+    }
+
+    const fallbackResult = heuristicExtract(cleanRawText, cleanMachineId);
 
     if (!process.env.GEMINI_API_KEY) {
       return res.json({ success: true, data: fallbackResult });
@@ -221,16 +243,19 @@ Extract structured machine fault data from audio/text into JSON:
 }`;
 
     const parts: any[] = [];
-    if (audioBase64) {
+    if (audioBase64 && typeof audioBase64 === 'string') {
+      if (audioBase64.length > 35 * 1024 * 1024) {
+        return res.status(400).json({ success: false, error: 'Audio payload exceeds maximum size limit of 25MB.' });
+      }
       parts.push({
         inlineData: {
-          mimeType,
+          mimeType: typeof mimeType === 'string' && mimeType.startsWith('audio/') ? mimeType : 'audio/webm',
           data: audioBase64,
         },
       });
     }
-    if (rawText) {
-      parts.push({ text: `Technician Field Note for asset ${machineIdDefault}: "${rawText}"` });
+    if (cleanRawText) {
+      parts.push({ text: `Technician Field Note for asset ${cleanMachineId}: "${cleanRawText}"` });
     }
 
     if (parts.length === 0) {
@@ -436,24 +461,41 @@ app.post('/api/gemini/investigate', handleInvestigate);
 // Institutional Memory Query
 const handleQuery = async (req: Request, res: Response) => {
   try {
-    const { query: userQuery, machine_id = 'M001', knowledgeEntries = [], incidents = [] } = req.body;
+    const { query: userQuery, machine_id = 'M001', knowledgeEntries = [], incidents = [] } = req.body || {};
+
+    const cleanQuery = typeof userQuery === 'string' ? userQuery.trim() : '';
+    const cleanMachineId = typeof machine_id === 'string' ? machine_id.trim().toUpperCase() : 'M001';
+
+    // Anti-XSS and script injection check
+    const dangerousPatterns = /<[^>]*>|javascript:|on\w+\s*=|__proto__|constructor|\$where/i;
+    if (dangerousPatterns.test(cleanQuery) || dangerousPatterns.test(cleanMachineId)) {
+      return res.status(400).json({ success: false, error: 'Prohibited characters or script injection detected in repository query.' });
+    }
+
+    if (!cleanQuery) {
+      return res.status(400).json({ success: false, error: 'Query parameter cannot be empty.' });
+    }
+
+    if (cleanQuery.length > 500) {
+      return res.status(400).json({ success: false, error: 'Query text exceeds maximum length of 500 characters.' });
+    }
 
     if (!process.env.GEMINI_API_KEY) {
       return res.json({
         success: true,
-        answer: `[CENTRAL REPOSITORY RESPONSE for ${machine_id}]: Based on verified institutional records, common issues with ${machine_id} involve coupling thermal drift, fluid cavitation, or filtration saturation. Consult past incidents INC-001 through INC-005 and verified maintenance rules before replacing primary assemblies.`,
+        answer: `[CENTRAL REPOSITORY RESPONSE for ${cleanMachineId}]: Based on verified institutional records, common issues with ${cleanMachineId} involve coupling thermal drift, fluid cavitation, or filtration saturation. Consult past incidents INC-001 through INC-005 and verified maintenance rules before replacing primary assemblies.`,
         sources: [
-          `Historical Records: ${incidents.length} past incidents in database`,
-          `Institutional Knowledge: ${knowledgeEntries.length} field heuristics verified`,
+          `Historical Records: ${Array.isArray(incidents) ? incidents.length : 0} past incidents in database`,
+          `Institutional Knowledge: ${Array.isArray(knowledgeEntries) ? knowledgeEntries.length : 0} field heuristics verified`,
         ],
       });
     }
 
     const client = getAiClient();
-    const prompt = `User Query: "${userQuery}"
-Target Machine: ${machine_id}
-Verified Incidents: ${JSON.stringify(incidents.slice(0, 8), null, 2)}
-Field Knowledge: ${JSON.stringify(knowledgeEntries.slice(0, 10), null, 2)}
+    const prompt = `User Query: "${cleanQuery}"
+Target Machine: ${cleanMachineId}
+Verified Incidents: ${JSON.stringify(Array.isArray(incidents) ? incidents.slice(0, 8) : [], null, 2)}
+Field Knowledge: ${JSON.stringify(Array.isArray(knowledgeEntries) ? knowledgeEntries.slice(0, 10) : [], null, 2)}
 
 Provide a concise, authoritative answer citing specific past incident IDs, technician rules, and ISO 10816-3 standards.`;
 
@@ -465,7 +507,7 @@ Provide a concise, authoritative answer citing specific past incident IDs, techn
     return res.json({
       success: true,
       answer: response.text,
-      sources: [`Central Repository records for ${machine_id}`, 'ISO 10816-3 Mechanical Specifications'],
+      sources: [`Central Repository records for ${cleanMachineId}`, 'ISO 10816-3 Mechanical Specifications'],
     });
   } catch (err: any) {
     console.error('Query error:', err);
@@ -484,8 +526,10 @@ app.post('/api/gemini/query', handleQuery);
 // SECURE BACKEND AUTHENTICATION SYSTEM
 // ==========================================
 const SESSION_SECRET = process.env.SESSION_SECRET || 'promptnova_industrial_terminal_secret_key_2026';
-const UNIVERSAL_PASSWORD = 'Pass@123#';
-const UNIVERSAL_PASSWORD_HASH = crypto.createHash('sha256').update(UNIVERSAL_PASSWORD).digest('hex');
+const DEFAULT_TECH_PASSWORD = process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || '';
+const DEFAULT_TECH_PASSWORD_HASH = DEFAULT_TECH_PASSWORD
+  ? crypto.createHash('sha256').update(DEFAULT_TECH_PASSWORD).digest('hex')
+  : '';
 
 interface ServerTechnician {
   technician_id: string;
@@ -497,7 +541,18 @@ interface ServerTechnician {
   shift: string;
 }
 
-const TECHNICIANS_REGISTRY: ServerTechnician[] = [
+const DATA_DIR = path.join(__dirname, 'data');
+const TECHNICIANS_FILE = path.join(DATA_DIR, 'technicians.json');
+
+interface StoredTechnician extends ServerTechnician {
+  password_hash?: string;
+  avatar_url?: string;
+  last_login?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+const DEFAULT_SEED_TECHNICIANS: ServerTechnician[] = [
   {
     technician_id: 'TECH-01',
     name: 'Marcus Vance',
@@ -535,6 +590,48 @@ const TECHNICIANS_REGISTRY: ServerTechnician[] = [
     shift: 'Plant Operations & Engineering Leadership',
   },
 ];
+
+function loadTechniciansFromDisk(): StoredTechnician[] {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(TECHNICIANS_FILE)) {
+      const content = fs.readFileSync(TECHNICIANS_FILE, 'utf8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+    const defaultPassword = process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || '';
+    const defaultHash = crypto.createHash('sha256').update(defaultPassword).digest('hex');
+    const initial: StoredTechnician[] = DEFAULT_SEED_TECHNICIANS.map((t) => ({
+      ...t,
+      password_hash: defaultHash,
+      avatar_url: '',
+      last_login: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }));
+    fs.writeFileSync(TECHNICIANS_FILE, JSON.stringify(initial, null, 2), 'utf8');
+    return initial;
+  } catch (err) {
+    console.error('Failed to load technicians from disk:', err);
+    return DEFAULT_SEED_TECHNICIANS.map((t) => ({ ...t }));
+  }
+}
+
+function saveTechniciansToDisk(techs: StoredTechnician[]): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(TECHNICIANS_FILE, JSON.stringify(techs, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save technicians to disk:', err);
+  }
+}
+
+let TECHNICIANS_REGISTRY: StoredTechnician[] = loadTechniciansFromDisk();
 
 function createSessionToken(tech: ServerTechnician): string {
   const payload = {
@@ -577,6 +674,196 @@ function verifySessionToken(token: string): ServerTechnician | null {
   }
 }
 
+// GET /api/technicians - List all technicians from database
+app.get('/api/technicians', (_req: Request, res: Response) => {
+  TECHNICIANS_REGISTRY = loadTechniciansFromDisk();
+  const safeList = TECHNICIANS_REGISTRY.map(({ password_hash, ...rest }) => rest);
+  return res.json({ success: true, technicians: safeList });
+});
+
+// POST /api/technicians - Register a new technician in database
+app.post('/api/technicians', (req: Request, res: Response) => {
+  try {
+    const { technician_id, name, email, role, shift, experience, skills, password } = req.body || {};
+
+    const cleanId = String(technician_id || '').trim().toUpperCase();
+    const cleanName = String(name || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanRole = String(role || 'Maintenance Specialist').trim();
+    const cleanShift = String(shift || 'Day Shift').trim();
+    const cleanExp = typeof experience === 'number' ? Math.max(0, Math.min(60, experience)) : 5;
+    const cleanSkills = Array.isArray(skills) ? skills.map((s) => String(s).trim()).filter(Boolean) : [];
+
+    // Security validation against malicious patterns
+    const dangerousPatterns = /<[^>]*>|javascript:|on\w+\s*=|__proto__|constructor/i;
+    if (
+      dangerousPatterns.test(cleanId) ||
+      dangerousPatterns.test(cleanName) ||
+      dangerousPatterns.test(cleanEmail) ||
+      dangerousPatterns.test(cleanRole) ||
+      dangerousPatterns.test(cleanShift) ||
+      dangerousPatterns.test(String(password || ''))
+    ) {
+      return res.status(400).json({ success: false, error: 'Prohibited characters or malicious payload detected.' });
+    }
+
+    if (!cleanId || !/^[A-Z0-9-_]{3,20}$/.test(cleanId)) {
+      return res.status(400).json({ success: false, error: 'Technician ID must be 3-20 alphanumeric characters (e.g., TECH-05).' });
+    }
+
+    if (!cleanName || cleanName.length < 2 || cleanName.length > 80) {
+      return res.status(400).json({ success: false, error: 'Valid technician name is required (2-80 characters).' });
+    }
+
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Valid plant or corporate email address is required.' });
+    }
+
+    TECHNICIANS_REGISTRY = loadTechniciansFromDisk();
+
+    // Check collision
+    if (TECHNICIANS_REGISTRY.some((t) => t.technician_id.toUpperCase() === cleanId)) {
+      return res.status(409).json({ success: false, error: `Technician ID "${cleanId}" already exists.` });
+    }
+
+    if (TECHNICIANS_REGISTRY.some((t) => t.email.toLowerCase() === cleanEmail)) {
+      return res.status(409).json({ success: false, error: `Email "${cleanEmail}" is already registered.` });
+    }
+
+    // Determine password: if blank, default to VITE_DEFAULT_TECHNICIAN_PASSWORD
+    const rawPass = String(password || '').trim();
+    const effectivePass = rawPass || process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || 'Pass@123#';
+    const passwordHash = crypto.createHash('sha256').update(effectivePass).digest('hex');
+
+    const newTech: StoredTechnician = {
+      technician_id: cleanId,
+      name: cleanName,
+      email: cleanEmail,
+      role: cleanRole,
+      shift: cleanShift,
+      experience: cleanExp,
+      skills: cleanSkills,
+      password_hash: passwordHash,
+      avatar_url: '',
+      last_login: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    TECHNICIANS_REGISTRY.push(newTech);
+    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
+
+    const { password_hash, ...safeTech } = newTech;
+    return res.status(201).json({ success: true, technician: safeTech });
+  } catch (err: any) {
+    console.error('Error creating technician:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error saving technician.' });
+  }
+});
+
+// PUT /api/technicians/:id - Update existing technician
+app.put('/api/technicians/:id', (req: Request, res: Response) => {
+  try {
+    const techId = String(req.params.id || '').trim().toUpperCase();
+    const { name, email, role, shift, experience, skills, password } = req.body || {};
+
+    TECHNICIANS_REGISTRY = loadTechniciansFromDisk();
+    const existingIndex = TECHNICIANS_REGISTRY.findIndex(
+      (t) => t.technician_id.toUpperCase() === techId
+    );
+
+    if (existingIndex === -1) {
+      return res.status(404).json({ success: false, error: `Technician "${techId}" not found in database.` });
+    }
+
+    const cleanName = String(name || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanRole = String(role || 'Maintenance Specialist').trim();
+    const cleanShift = String(shift || 'Day Shift').trim();
+    const cleanExp = typeof experience === 'number' ? Math.max(0, Math.min(60, experience)) : 5;
+    const cleanSkills = Array.isArray(skills) ? skills.map((s) => String(s).trim()).filter(Boolean) : [];
+
+    // Security validation against malicious patterns
+    const dangerousPatterns = /<[^>]*>|javascript:|on\w+\s*=|__proto__|constructor/i;
+    if (
+      dangerousPatterns.test(cleanName) ||
+      dangerousPatterns.test(cleanEmail) ||
+      dangerousPatterns.test(cleanRole) ||
+      dangerousPatterns.test(cleanShift) ||
+      dangerousPatterns.test(String(password || ''))
+    ) {
+      return res.status(400).json({ success: false, error: 'Prohibited characters or malicious payload detected.' });
+    }
+
+    if (!cleanName || cleanName.length < 2 || cleanName.length > 80) {
+      return res.status(400).json({ success: false, error: 'Valid technician name is required (2-80 characters).' });
+    }
+
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Valid email address is required.' });
+    }
+
+    // Email conflict check with other technicians
+    const emailConflict = TECHNICIANS_REGISTRY.some(
+      (t) => t.email.toLowerCase() === cleanEmail && t.technician_id.toUpperCase() !== techId
+    );
+    if (emailConflict) {
+      return res.status(409).json({ success: false, error: `Email "${cleanEmail}" is already registered to another technician.` });
+    }
+
+    const currentTech = TECHNICIANS_REGISTRY[existingIndex];
+    let updatedHash = currentTech.password_hash;
+    const rawPass = String(password || '').trim();
+    if (rawPass) {
+      updatedHash = crypto.createHash('sha256').update(rawPass).digest('hex');
+    }
+
+    const updatedTech: StoredTechnician = {
+      ...currentTech,
+      name: cleanName,
+      email: cleanEmail,
+      role: cleanRole,
+      shift: cleanShift,
+      experience: cleanExp,
+      skills: cleanSkills,
+      password_hash: updatedHash,
+      updated_at: new Date().toISOString(),
+    };
+
+    TECHNICIANS_REGISTRY[existingIndex] = updatedTech;
+    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
+
+    const { password_hash, ...safeTech } = updatedTech;
+    return res.json({ success: true, technician: safeTech });
+  } catch (err: any) {
+    console.error('Error updating technician:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error updating technician.' });
+  }
+});
+
+// DELETE /api/technicians/:id - Delete technician from database
+app.delete('/api/technicians/:id', (req: Request, res: Response) => {
+  try {
+    const techId = String(req.params.id || '').trim().toUpperCase();
+
+    TECHNICIANS_REGISTRY = loadTechniciansFromDisk();
+    const existingIndex = TECHNICIANS_REGISTRY.findIndex(
+      (t) => t.technician_id.toUpperCase() === techId
+    );
+
+    if (existingIndex === -1) {
+      return res.status(404).json({ success: false, error: `Technician "${techId}" not found in database.` });
+    }
+
+    TECHNICIANS_REGISTRY.splice(existingIndex, 1);
+    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
+
+    return res.json({ success: true, deletedTechnicianId: techId });
+  } catch (err: any) {
+    console.error('Error deleting technician:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error deleting technician.' });
+  }
+});
+
 // POST /api/auth/login - Secure server-side credential verification
 app.post('/api/auth/login', (req: Request, res: Response) => {
   const { email, password } = req.body || {};
@@ -587,17 +874,25 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   const normalizedEmail = email.trim().toLowerCase();
   const enteredHash = crypto.createHash('sha256').update(password.trim()).digest('hex');
 
-  const isPasswordValid = enteredHash === UNIVERSAL_PASSWORD_HASH || password.trim() === UNIVERSAL_PASSWORD;
+  TECHNICIANS_REGISTRY = loadTechniciansFromDisk();
   const tech = TECHNICIANS_REGISTRY.find((t) => t.email.toLowerCase() === normalizedEmail);
+
+  const isPasswordValid = Boolean(
+    tech &&
+      ((tech.password_hash && enteredHash === tech.password_hash) ||
+        (DEFAULT_TECH_PASSWORD_HASH && enteredHash === DEFAULT_TECH_PASSWORD_HASH) ||
+        (DEFAULT_TECH_PASSWORD && password.trim() === DEFAULT_TECH_PASSWORD))
+  );
 
   if (!tech || !isPasswordValid) {
     return res.status(401).json({ success: false, error: 'Incorrect email or password.' });
   }
 
   const token = createSessionToken(tech);
+  const { password_hash, ...safeTech } = tech;
   return res.json({
     success: true,
-    technician: tech,
+    technician: safeTech,
     token,
   });
 });
@@ -619,6 +914,33 @@ app.post('/api/auth/verify', (req: Request, res: Response) => {
     success: true,
     technician: tech,
   });
+});
+
+// POST /api/db/seed - Manual endpoint to trigger dataset seeder
+app.post('/api/db/seed', (_req: Request, res: Response) => {
+  try {
+    const defaultHash = DEFAULT_TECH_PASSWORD_HASH || crypto.createHash('sha256').update('Pass@123#').digest('hex');
+    TECHNICIANS_REGISTRY = SEED_TECHNICIANS.map((t) => ({
+      ...t,
+      password_hash: defaultHash,
+      updated_at: new Date().toISOString(),
+    }));
+    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
+
+    return res.json({
+      success: true,
+      message: 'Database baseline datasets loaded from src/db/seedData.ts.',
+      counts: {
+        machines: SEED_MACHINES.length,
+        incidents: SEED_INCIDENTS.length,
+        knowledge: SEED_KNOWLEDGE.length,
+        technicians: SEED_TECHNICIANS.length,
+      },
+    });
+  } catch (err: any) {
+    console.error('Seeder endpoint error:', err);
+    return res.status(500).json({ success: false, error: 'Database seeding failed.' });
+  }
 });
 
 // POST /api/auth/logout - Invalidate session

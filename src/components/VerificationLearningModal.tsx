@@ -21,6 +21,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { saveVerifiedResolutionToFirestore } from '../services/machineMemoryService';
+import { validateResolutionInput } from '../lib/securityValidation';
 import { Incident, Machine, ExtractionResult, VerificationMedia, VerificationMediaItem, Technician } from '../types/industrial';
 
 interface VerificationLearningModalProps {
@@ -88,6 +89,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCommitted, setIsCommitted] = useState(false);
   const [committedIncident, setCommittedIncident] = useState<Incident | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   useEffect(() => {
     setConfirmedCause(defaultCause);
@@ -179,7 +181,28 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
   // Commit Verified Incident to Firestore & Knowledge Base
   const handleCommit = async () => {
     setIsSubmitting(true);
+    setCommitError(null);
     try {
+      const incidentId = `INC-${currentAssetId}-${Date.now().toString().slice(-4)}`;
+
+      // Frontend Security Validation Check
+      const validation = validateResolutionInput({
+        incident_id: incidentId,
+        machine_id: currentAssetId,
+        confirmed_cause: confirmedCause,
+        repair: repairAction,
+        downtime: actualDowntime,
+        notes,
+        verified_by: verifiedBy,
+      });
+
+      if (!validation.isValid) {
+        const firstErr = Object.values(validation.errors)[0];
+        setCommitError(firstErr);
+        setIsSubmitting(false);
+        return;
+      }
+
       const mediaPayload: VerificationMedia = {};
       if (audioUrl) mediaPayload.audio_url = audioUrl;
       if (audioNote) mediaPayload.audio_note = audioNote;
@@ -188,25 +211,19 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
       if (videoNote) mediaPayload.video_note = videoNote;
 
       const hasMedia = Object.keys(mediaPayload).length > 0;
-      const incidentId = `INC-${currentAssetId}-${Date.now().toString().slice(-4)}`;
 
       const incident = await saveVerifiedResolutionToFirestore({
-        incident_id: incidentId,
-        machine_id: currentAssetId,
-        confirmed_cause: confirmedCause,
-        repair: repairAction,
-        downtime: actualDowntime,
-        notes,
-        verified_by: verifiedBy,
-        outcome: `Equipment restored to nominal ISO 10816-3 baseline; verified root cause: ${confirmedCause}.`,
+        ...validation.sanitized,
+        outcome: `Equipment restored to nominal ISO 10816-3 baseline; verified root cause: ${validation.sanitized.confirmed_cause}.`,
         verification_media: hasMedia ? mediaPayload : undefined,
       });
 
       setCommittedIncident(incident);
       setIsCommitted(true);
       onLearningCommitted(incident);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to commit verified memory:', err);
+      setCommitError(err?.message || 'Database write failed: No active connection with Firestore. Local storage is disabled.');
     } finally {
       setIsSubmitting(false);
     }
@@ -214,6 +231,14 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-5 sm:p-6 shadow-xl space-y-6">
+      {/* Error notification banner if database commit fails */}
+      {commitError && (
+        <div className="p-3.5 px-4 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-200 text-xs font-mono flex items-center justify-between">
+          <span>{commitError}</span>
+          <button onClick={() => setCommitError(null)} className="text-slate-400 hover:text-white ml-2 font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
         <div>

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Machine, Incident, KnowledgeItem } from '../types/industrial';
 import { PipelineStep } from './Header';
-import { SEED_MACHINES, SEED_INCIDENTS, SEED_KNOWLEDGE } from '../services/machineMemoryService';
+import { ClassifiedFirestoreError } from '../lib/firebase';
 
 interface DashboardViewProps {
   machines: Machine[];
@@ -37,6 +37,12 @@ interface DashboardViewProps {
   onViewRepository: () => void;
   onOpenAddMachine: () => void;
   onManageAssets?: () => void;
+  isLoadingData?: boolean;
+  isFirestoreConnected?: boolean;
+  dbConnectionError?: string | null;
+  classifiedError?: ClassifiedFirestoreError | null;
+  onRetryConnection?: () => void;
+  onSeedDatabase?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -49,20 +55,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onViewRepository,
   onOpenAddMachine,
   onManageAssets,
+  isLoadingData = false,
+  isFirestoreConnected = true,
+  dbConnectionError = null,
+  classifiedError = null,
+  onRetryConnection,
+  onSeedDatabase,
 }) => {
-  // Filter out any invalid/undefined elements
+  // Filter out any invalid/undefined elements - strictly use live database data, never local seed fallback
   const safeMachines: Machine[] = Array.isArray(machines)
     ? machines.filter((m): m is Machine => Boolean(m && typeof m === 'object' && m.machine_id))
     : [];
-  const validMachines = safeMachines.length > 0 ? safeMachines : SEED_MACHINES;
+  const validMachines = safeMachines;
 
   const safeIncidents: Incident[] = Array.isArray(incidents)
     ? incidents.filter((i): i is Incident => Boolean(i && typeof i === 'object' && i.incident_id))
-    : SEED_INCIDENTS;
+    : [];
 
   const safeKnowledge: KnowledgeItem[] = Array.isArray(knowledge)
     ? knowledge.filter((k): k is KnowledgeItem => Boolean(k && typeof k === 'object' && k.knowledge_id))
-    : SEED_KNOWLEDGE;
+    : [];
 
   // Determine if viewing all assets (general mode) or a single particular asset
   const isAllAssetsMode = !activeMachineId || activeMachineId === 'ALL';
@@ -96,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             0
           ) / totalAssetsCount
         ).toFixed(2)
-      : '1.40';
+      : '0.00';
 
   // Subsystem badge helper
   const getSubsystemLabel = (type?: string) => {
@@ -131,6 +143,157 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const alertMachine = validMachines.find(
     (m) => m?.status === 'warning' || m?.status === 'critical'
   ) || validMachines[0];
+
+  // If data is loading or connection is resolving, display dedicated industrial loader
+  if (isLoadingData) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-10 sm:p-16 text-center shadow-2xl backdrop-blur-xl flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_40%,rgba(6,182,212,0.1),transparent)] pointer-events-none" />
+        <div className="relative mb-6">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+            <Database className="w-8 h-8 text-cyan-400 animate-pulse" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-400 animate-ping" />
+        </div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800/80 text-cyan-400 text-xs font-mono font-bold uppercase mb-3 tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          Connecting to Cloud Firestore
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
+          Retrieving Fleet Machinery & Institutional Memory
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-lg mb-6 font-mono leading-relaxed">
+          Querying remote Firestore collections (<span className="text-cyan-300">machines</span>, <span className="text-cyan-300">incidents</span>, <span className="text-cyan-300">knowledge</span>). Stand by while database connection is verified...
+        </p>
+        <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+          <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          <span>Synchronizing live database state</span>
+        </div>
+      </div>
+    );
+  }
+
+  // If there is no database connection, show explicit Disconnected Error Screen differentiating error types
+  if (!isFirestoreConnected) {
+    const isPermission = classifiedError?.type === 'permission_denied';
+    const isNetwork = classifiedError?.type === 'network_unreachable';
+
+    return (
+      <div
+        className={`bg-slate-900/95 border rounded-2xl p-8 sm:p-14 text-center shadow-2xl backdrop-blur-xl flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden ${
+          isPermission ? 'border-rose-800/80' : isNetwork ? 'border-amber-800/80' : 'border-rose-900/60'
+        }`}
+      >
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            isPermission
+              ? 'bg-[radial-gradient(ellipse_60%_60%_at_50%_40%,rgba(244,63,94,0.1),transparent)]'
+              : 'bg-[radial-gradient(ellipse_60%_60%_at_50%_40%,rgba(245,158,11,0.1),transparent)]'
+          }`}
+        />
+
+        <div
+          className={`w-16 h-16 rounded-2xl border flex items-center justify-center mb-6 shadow-2xl ${
+            isPermission
+              ? 'bg-rose-950/80 border-rose-500/50 shadow-rose-950/50 text-rose-400'
+              : 'bg-amber-950/80 border-amber-500/50 shadow-amber-950/50 text-amber-400'
+          }`}
+        >
+          {isPermission ? <ShieldAlert className="w-8 h-8" /> : <Radio className="w-8 h-8" />}
+        </div>
+
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase mb-3 tracking-wider border ${
+            isPermission
+              ? 'bg-rose-950/90 border-rose-800 text-rose-300'
+              : 'bg-amber-950/90 border-amber-800 text-amber-300'
+          }`}
+        >
+          {isPermission ? 'Security Rules Violation' : 'Network Connectivity Failure'}
+        </div>
+
+        <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
+          {classifiedError?.title || (isPermission ? 'Permission Denied by Firestore Rules' : 'Network Unreachable (Firestore Offline)')}
+        </h2>
+
+        <p className="text-xs sm:text-sm text-slate-300 max-w-lg mb-4 font-mono leading-relaxed">
+          {classifiedError?.message ||
+            'The application cannot operate without an active connection to Google Cloud Firestore. In accordance with system policy, local fallback data and offline local storage have been disabled.'}
+        </p>
+
+        {classifiedError?.resolution && (
+          <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3 max-w-lg w-full mb-5 text-xs text-slate-300 font-mono text-left">
+            <span className="text-slate-500 font-bold block mb-1">Recommended Action:</span>
+            {classifiedError.resolution}
+          </div>
+        )}
+
+        {(classifiedError?.details || dbConnectionError) && (
+          <div className="bg-black/60 border border-slate-800 rounded-lg p-3.5 text-left max-w-lg w-full mb-6 font-mono text-[11px] text-slate-400 overflow-x-auto shadow-inner">
+            <span className="text-slate-500 block mb-1 font-bold">Diagnostic Trace:</span>
+            <code className={isPermission ? 'text-rose-300' : 'text-amber-300'}>
+              {classifiedError?.details || dbConnectionError}
+            </code>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {onRetryConnection && (
+            <button
+              onClick={onRetryConnection}
+              className={`px-5 py-2.5 rounded-lg font-mono font-bold text-xs tracking-wider flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
+                isPermission
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/60'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-950/60'
+              }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              {isPermission ? 'RETRY PERMISSION CHECK' : 'RETRY FIRESTORE CONNECTION'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // If connected but no machines in Firestore
+  if (validMachines.length === 0) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 sm:p-14 text-center shadow-2xl backdrop-blur-xl flex flex-col items-center justify-center min-h-[420px] relative overflow-hidden">
+        <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-5 text-slate-400">
+          <Database className="w-8 h-8 text-cyan-400" />
+        </div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs font-mono font-bold uppercase mb-3">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Firestore Database Connected
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
+          Fleet Collection Is Empty
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-lg mb-6 font-mono leading-relaxed">
+          Your Firestore database is online, but no machinery assets are registered in the <span className="text-slate-200">machines</span> collection. You can seed the baseline demonstration fleet into Firestore or manually register an asset.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {onSeedDatabase && (
+            <button
+              onClick={onSeedDatabase}
+              className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/40 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              SEED BASELINE FLEET TO FIRESTORE
+            </button>
+          )}
+          <button
+            onClick={onOpenAddMachine}
+            className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs tracking-wider flex items-center gap-2 transition-all border border-slate-700 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-cyan-400" />
+            REGISTER NEW ASSET
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

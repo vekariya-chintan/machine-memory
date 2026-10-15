@@ -152,7 +152,7 @@ export interface Technician {
   technician_id: string;
   name: string;
   email: string;
-  password_hash: string;
+  password_hash?: string;
   encrypted_password?: string;
   role: string;
   skills: string[];

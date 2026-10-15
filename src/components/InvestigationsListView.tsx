@@ -76,14 +76,9 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
     });
   }, [incidents]);
 
-  // Filter investigations based on search query, asset filter, and status filter
+  // Filter investigations based on search query and status filter
   const filteredIncidents = useMemo(() => {
     return sortedIncidents.filter((inc) => {
-      // Machine filter
-      if (activeMachineId && activeMachineId !== 'ALL' && inc.machine_id !== activeMachineId) {
-        return false;
-      }
-
       // Status filter
       if (statusFilter !== 'all' && inc.status !== statusFilter) {
         return false;
@@ -116,7 +111,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
       return true;
     });
-  }, [sortedIncidents, activeMachineId, statusFilter, searchQuery, machineMap]);
+  }, [sortedIncidents, statusFilter, searchQuery, machineMap]);
 
   // KPI Calculations
   const totalCount = sortedIncidents.length;
@@ -131,7 +126,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
       <div className="bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border border-slate-800 rounded-xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
           <div>
             <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-cyan-400 mb-2">
               <span className="px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/80 font-bold flex items-center gap-1.5">
@@ -146,9 +141,17 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
               Machinery Incident Investigations
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-3xl mt-1 leading-relaxed">
-              Complete historical record of all plant diagnostic investigations, automated root-cause analyses, and verified failure resolutions across the manufacturing cell. Select any investigation to review the workflow or start a new investigation below.
+              Complete historical record of all plant diagnostic investigations, automated root-cause analyses, and verified failure resolutions across the manufacturing cell. Select any investigation to review the workflow or start a new investigation.
             </p>
           </div>
+
+          <button
+            onClick={() => onStartNewInvestigation()}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-extrabold font-mono text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
+            <span>New Incident Investigation</span>
+          </button>
         </div>
 
         {/* Aggregate KPI Strip */}
@@ -204,23 +207,6 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
           {/* Filters Row */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Searchable Dropdown for Asset Selection */}
-            <div className="w-56">
-              <SearchableDropdown
-                options={assetOptions}
-                value={activeMachineId}
-                onChange={onSelectMachineId}
-                labelPrefix="FILTER ASSET:"
-                icon={<Cpu className="w-3.5 h-3.5" />}
-                showAllOption={true}
-                allOptionLabel="ALL ASSETS (Fleet)"
-                allOptionValue="ALL"
-                placeholder="Filter by Asset..."
-                searchPlaceholder="Search machine..."
-                align="right"
-              />
-            </div>
-
             {/* Status Filter Buttons */}
             <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 font-mono text-xs">
               <button

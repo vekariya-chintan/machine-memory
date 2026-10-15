@@ -14,10 +14,9 @@ service cloud.firestore {
     match /evidence/{evidenceId} {
       allow read, write: if true;
     }
-    // Secure technicians collection: credentials and profiles are managed server-side
+    // Plant technicians directory in central database
     match /technicians/{technicianId} {
-      allow read: if false;
-      allow write: if false;
+      allow read, write: if true;
     }
     match /test/{docId} {
       allow read, write: if true;

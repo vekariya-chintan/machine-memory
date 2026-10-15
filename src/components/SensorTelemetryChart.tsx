@@ -14,9 +14,6 @@ import {
 } from 'lucide-react';
 import { SensorReading, Machine } from '../types/industrial';
 import {
-  MACHINE_TELEMETRY_DATASETS,
-  DEMO_SENSOR_CSV,
-  DEMO_SENSOR_ROWS,
   getMachineDataset,
   generateTelemetryFromExtraction,
 } from '../services/machineMemoryService';

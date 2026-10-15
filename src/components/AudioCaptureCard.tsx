@@ -18,7 +18,6 @@ import {
   Lock,
 } from 'lucide-react';
 import { ExtractionResult, SensorReading } from '../types/industrial';
-import { MACHINE_TELEMETRY_DATASETS } from '../services/machineMemoryService';
 
 interface AudioCaptureCardProps {
   onExtractionComplete: (

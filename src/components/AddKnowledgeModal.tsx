@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, BookOpen, Sparkles, CheckCircle2, AlertCircle, Database, Plus } from 'lucide-react';
 import { Machine, KnowledgeItem } from '../types/industrial';
+import { validateKnowledgeInput } from '../lib/securityValidation';
 
 interface AddKnowledgeModalProps {
   isOpen: boolean;
@@ -32,18 +33,10 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
 
   if (!isOpen) return null;
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setError('Please provide a title for the knowledge item or tip.');
-      return;
-    }
-    if (!content.trim()) {
-      setError('Please enter the knowledge content or tip instructions.');
-      return;
-    }
-
-    setIsSubmitting(true);
     setError(null);
 
     const tags = tagsString
@@ -51,17 +44,27 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
       .map((t) => t.trim())
       .filter(Boolean);
 
+    const rawPayload = {
+      machine_id: machineId,
+      type,
+      title,
+      content,
+      source: source || 'Technician Field Memo',
+      created_by: createdBy || 'Plant Technician',
+      confidence: Number(confidence),
+      tags: tags.length > 0 ? tags : ['heuristic', machineId],
+    };
+
+    const validation = validateKnowledgeInput(rawPayload);
+    if (!validation.isValid) {
+      const firstErr = Object.values(validation.errors)[0];
+      setError(firstErr);
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      await onSave({
-        machine_id: machineId,
-        type,
-        title: title.trim(),
-        content: content.trim(),
-        source: source.trim() || 'Technician Field Memo',
-        created_by: createdBy.trim() || 'Plant Technician',
-        confidence: Number(confidence),
-        tags: tags.length > 0 ? tags : ['heuristic', machineId],
-      });
+      await onSave(validation.sanitized);
       // Reset form
       setTitle('');
       setContent('');

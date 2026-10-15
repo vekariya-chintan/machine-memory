@@ -23,6 +23,7 @@ import { Machine, Incident, KnowledgeItem, VerificationMedia, Technician } from 
 import { SearchableDropdown } from './SearchableDropdown';
 import { AddKnowledgeModal } from './AddKnowledgeModal';
 import { addKnowledgeToFirestore } from '../services/machineMemoryService';
+import { validateQueryInput } from '../lib/securityValidation';
 
 interface InstitutionalMemoryBrowserProps {
   machines: Machine[];
@@ -62,27 +63,46 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   }, [knowledge]);
 
   const handleSaveNewKnowledge = async (newItem: Omit<KnowledgeItem, 'knowledge_id' | 'created_at'>) => {
-    const saved = await addKnowledgeToFirestore(newItem);
-    const updated = [saved, ...localKnowledge];
-    setLocalKnowledge(updated);
-    if (onKnowledgeUpdated) {
-      onKnowledgeUpdated(updated);
+    try {
+      const saved = await addKnowledgeToFirestore(newItem);
+      const updated = [saved, ...localKnowledge];
+      setLocalKnowledge(updated);
+      if (onKnowledgeUpdated) {
+        onKnowledgeUpdated(updated);
+      }
+    } catch (err: any) {
+      console.error('Failed to commit knowledge to Firestore:', err);
+      throw new Error('Database connection unavailable: knowledge cannot be stored locally.');
     }
   };
 
   const handleAskMemory = async () => {
     if (!aiQuery.trim()) return;
+    
+    // Security validation check on query string
+    const validation = validateQueryInput(aiQuery);
+    if (!validation.isValid) {
+      setAiAnswer(`⚠️ Security Alert: Prohibited characters or script injection detected in repository query. Please enter plain technical query text.`);
+      return;
+    }
+
     setIsAiLoading(true);
     try {
       const res = await fetch('/api/intelligence/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: aiQuery,
-          context: { machines, incidents, knowledge },
+          query: validation.sanitized,
+          machine_id: selectedAssetFilter !== 'all' ? selectedAssetFilter : activeMachineId,
+          knowledgeEntries: localKnowledge,
+          incidents,
         }),
       });
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        setAiAnswer(data.error || 'Failed to query institutional repository.');
+        return;
+      }
       setAiAnswer(data.answer);
     } catch (e) {
       setAiAnswer(

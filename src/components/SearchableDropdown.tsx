@@ -127,10 +127,10 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             : 'bg-slate-950 hover:bg-slate-900 border-slate-800 text-slate-200 hover:border-slate-700'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${buttonClassName}`}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {icon && <span className="shrink-0 text-cyan-400">{icon}</span>}
           {labelPrefix && <span className="text-slate-400 shrink-0">{labelPrefix}</span>}
-          <span className="font-bold text-cyan-300 truncate max-w-[140px] sm:max-w-[200px]">
+          <span className="font-bold text-cyan-300 truncate min-w-0 flex-1">
             {isAllSelected
               ? allOptionLabel
               : selectedOption

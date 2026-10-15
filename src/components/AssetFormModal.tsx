@@ -15,6 +15,7 @@ import {
   AssetSubsystemType,
 } from '../types/industrial';
 import { SearchableDropdown } from './SearchableDropdown';
+import { validateMachineInput } from '../lib/securityValidation';
 
 export interface AssetFormModalProps {
   isOpen: boolean;
@@ -291,78 +292,72 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
     }
   };
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    const cleanId = formId.trim().toUpperCase();
-    if (!cleanId) {
-      setErrorMsg('Please specify an Asset ID.');
-      return;
-    }
+    const rawPayload = {
+      machine_id: formId,
+      name: formName,
+      model: formModel,
+      manufacturer: formManufacturer,
+      location: formLocation,
+      subsystem_type: formSubsystem,
+      status: initialMachine?.status || 'nominal',
+      installed_date: initialMachine?.installed_date || new Date().toISOString().split('T')[0],
+      iso_machine_group: formIsoGroup,
+      foundation_type: formFoundation,
+      baseline_metrics: {
+        normal_temp_c: formNormalTemp,
+        max_temp_c: formMaxTemp,
+        normal_vibration_mms: formNormalVib,
+        iso_vibration_limit: formIsoLimit,
+        iso_zone_a_limit: formZoneA,
+        iso_zone_b_limit: formZoneB,
+        iso_zone_c_limit: formZoneC,
+        iso_zone_d_limit: formZoneD,
+        rated_rpm: formRatedRpm,
+        power_baseline_kw: formPowerKw,
+      },
+      subsystem_parameters: {
+        subsystem_type: formSubsystem,
+        key_parameters: [
+          {
+            name: formParam1Label,
+            baseline_value: isNaN(Number(formParam1Val)) ? formParam1Val : Number(formParam1Val),
+            unit: formParam1Unit,
+            alert_threshold: 'Out of tolerance',
+          },
+          {
+            name: formParam2Label,
+            baseline_value: isNaN(Number(formParam2Val)) ? formParam2Val : Number(formParam2Val),
+            unit: formParam2Unit,
+            alert_threshold: 'Out of tolerance',
+          },
+          {
+            name: formParam3Label,
+            baseline_value: isNaN(Number(formParam3Val)) ? formParam3Val : Number(formParam3Val),
+            unit: formParam3Unit,
+            alert_threshold: 'Out of tolerance',
+          },
+        ],
+      },
+      description: formDescription,
+    };
 
-    if (!isEdit && existingMachineIds.includes(cleanId)) {
-      setErrorMsg(`Asset ID "${cleanId}" already exists. Please choose a unique ID.`);
-      return;
-    }
+    const validation = validateMachineInput(rawPayload, isEdit, existingMachineIds);
 
-    if (!formName.trim()) {
-      setErrorMsg('Please enter an Equipment Name.');
+    if (!validation.isValid) {
+      const firstErr = Object.values(validation.errors)[0];
+      setErrorMsg(firstErr);
       return;
     }
 
     setIsSaving(true);
     try {
-      const updatedMachine: Machine = {
-        machine_id: cleanId,
-        name: formName.trim(),
-        model: formModel.trim() || 'Industrial Equipment',
-        manufacturer: formManufacturer.trim() || 'OEM',
-        location: formLocation.trim() || 'Factory Floor',
-        status: initialMachine?.status || 'nominal',
-        installed_date: initialMachine?.installed_date || new Date().toISOString().split('T')[0],
-        subsystem_type: formSubsystem,
-        iso_machine_group: formIsoGroup,
-        foundation_type: formFoundation,
-        baseline_metrics: {
-          normal_temp_c: Number(formNormalTemp),
-          max_temp_c: Number(formMaxTemp),
-          normal_vibration_mms: Number(formNormalVib),
-          iso_vibration_limit: Number(formIsoLimit),
-          iso_zone_a_limit: Number(formZoneA),
-          iso_zone_b_limit: Number(formZoneB),
-          iso_zone_c_limit: Number(formZoneC),
-          iso_zone_d_limit: Number(formZoneD),
-          rated_rpm: Number(formRatedRpm),
-          power_baseline_kw: Number(formPowerKw),
-        },
-        subsystem_parameters: {
-          subsystem_type: formSubsystem,
-          key_parameters: [
-            {
-              name: formParam1Label,
-              baseline_value: isNaN(Number(formParam1Val)) ? formParam1Val : Number(formParam1Val),
-              unit: formParam1Unit,
-              alert_threshold: 'Out of tolerance',
-            },
-            {
-              name: formParam2Label,
-              baseline_value: isNaN(Number(formParam2Val)) ? formParam2Val : Number(formParam2Val),
-              unit: formParam2Unit,
-              alert_threshold: 'Out of tolerance',
-            },
-            {
-              name: formParam3Label,
-              baseline_value: isNaN(Number(formParam3Val)) ? formParam3Val : Number(formParam3Val),
-              unit: formParam3Unit,
-              alert_threshold: 'Out of tolerance',
-            },
-          ],
-        },
-        description: formDescription.trim() || `${formName} for automated CNC production.`,
-      };
-
-      await onSave(updatedMachine);
+      await onSave(validation.sanitized as Machine);
       onClose();
     } catch (err: any) {
       console.error('Error saving asset:', err);

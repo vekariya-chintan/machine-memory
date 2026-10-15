@@ -17,6 +17,7 @@ import {
   Lock,
   LogOut,
   User,
+  Users,
 } from 'lucide-react';
 import { Machine, Technician } from '../types/industrial';
 import { SearchableDropdown, DropdownOption } from './SearchableDropdown';
@@ -29,7 +30,7 @@ export type PipelineStep =
   | 'investigate'
   | 'learn';
 
-export type NavigationMode = 'dashboard' | 'investigation' | 'repository' | 'assets';
+export type NavigationMode = 'dashboard' | 'investigation' | 'repository' | 'assets' | 'technicians';
 
 interface HeaderProps {
   currentMode: NavigationMode;
@@ -49,13 +50,13 @@ interface HeaderProps {
   onLogout?: () => void;
 }
 
-const STEPS: { id: PipelineStep; label: string; number: string; icon: React.ReactNode }[] = [
-  { id: 'capture', label: 'Incident Report', number: '01', icon: <Radio className="w-3.5 h-3.5" /> },
-  { id: 'extract', label: 'Fact Extraction', number: '02', icon: <BrainCircuit className="w-3.5 h-3.5" /> },
-  { id: 'telemetry', label: 'Sensor CSV Telemetry', number: '03', icon: <Activity className="w-3.5 h-3.5" /> },
-  { id: 'retrieve', label: 'Evidence Retrieval', number: '04', icon: <Database className="w-3.5 h-3.5" /> },
-  { id: 'investigate', label: 'Investigate & Explain', number: '05', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
-  { id: 'learn', label: 'Human Verification & Learn', number: '06', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+const STEPS: { id: PipelineStep; label: string; shortLabel: string; number: string; icon: React.ReactNode }[] = [
+  { id: 'capture', label: 'Incident Report', shortLabel: 'Report', number: '01', icon: <Radio className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'extract', label: 'Fact Extraction', shortLabel: 'Extraction', number: '02', icon: <BrainCircuit className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'telemetry', label: 'Sensor Telemetry', shortLabel: 'Telemetry', number: '03', icon: <Activity className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'retrieve', label: 'Evidence Retrieval', shortLabel: 'Retrieval', number: '04', icon: <Database className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'investigate', label: 'Investigate & Explain', shortLabel: 'Investigate', number: '05', icon: <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'learn', label: 'Verify & Learn', shortLabel: 'Verify', number: '06', icon: <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> },
 ];
 
 export const Header: React.FC<HeaderProps> = ({
@@ -127,15 +128,16 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </button>
             <span className="text-slate-800 hidden lg:inline">|</span>
-            <span className="text-slate-400 font-mono text-[11px] hidden xl:inline">
-              INDUSTRIAL RELIABILITY &amp; INCIDENT INVESTIGATION ENGINE
-            </span>
+            <div className="hidden lg:flex flex-col text-[10px] xl:text-[11px] font-mono leading-tight text-slate-400">
+              <span className="font-semibold text-slate-300 tracking-tight">INDUSTRIAL RELIABILITY &amp;</span>
+              <span className="text-slate-400 tracking-tight">INCIDENT INVESTIGATION ENGINE</span>
+            </div>
           </div>
 
-          {/* Quick Actions & Status (Fixed flex-nowrap to prevent Reset button from ever dropping down) */}
-          <div className="flex items-center flex-nowrap gap-1.5 sm:gap-2 font-mono text-[11px] shrink-0 ml-auto">
-            {/* Searchable Asset Selector Dropdown with Search Box */}
-            <div className="max-w-[130px] sm:max-w-[190px] md:max-w-[230px] shrink-0">
+          {/* Quick Actions & Status in requested sequence */}
+          <div className="flex items-center flex-nowrap gap-1.5 sm:gap-2.5 font-mono text-[11px] shrink-0 ml-auto">
+            {/* 1. Searchable Asset Selector Dropdown with responsive width */}
+            <div className="w-[130px] sm:w-[170px] md:w-[200px] lg:w-[240px] shrink-0">
               <SearchableDropdown
                 options={assetDropdownOptions}
                 value={activeMachineId}
@@ -147,23 +149,35 @@ export const Header: React.FC<HeaderProps> = ({
                 allOptionValue="ALL"
                 placeholder="Select Asset..."
                 searchPlaceholder="Search asset by ID or name..."
-                align="right"
+                align="left"
+                className="w-full"
+                buttonClassName="w-full"
               />
             </div>
 
-            {/* Central Database Connection Indicator */}
+            {/* 2. Reset Step Walkthrough Button placed next to Asset Dropdown */}
+            <button
+              onClick={onReset}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
+              title="Reset walkthrough demonstration"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="hidden sm:inline font-bold">RESET</span>
+            </button>
+
+            {/* 3. Central Database Connection Indicator */}
             <div
-              className="hidden sm:flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
               title="Firestore central database connection status"
             >
-              <Database className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <Database className={`w-3.5 h-3.5 shrink-0 ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
               <span className="text-slate-400 hidden lg:inline">DB:</span>
-              <span className={`text-[10px] sm:text-[11px] ${isFirestoreConnected ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}`}>
-                {isFirestoreConnected ? 'CONNECTED' : 'CONNECTING'}
+              <span className={`text-[10px] sm:text-[11px] font-semibold ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isFirestoreConnected ? 'CONNECTED' : 'DISCONNECTED'}
               </span>
             </div>
 
-            {/* Authenticated Technician Pill & Sign Out */}
+            {/* 4. Authenticated Technician Pill & Sign Out */}
             {authenticatedTechnician && (
               <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 shrink-0">
                 <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-600 to-purple-600 flex items-center justify-center font-bold text-[9px] text-white shrink-0">
@@ -188,16 +202,6 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
             )}
-
-            {/* Reset Step Walkthrough - Guaranteed inline, shrink-0, never pushed down */}
-            <button
-              onClick={onReset}
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
-              title="Reset walkthrough demonstration"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span className="hidden sm:inline font-bold">RESET</span>
-            </button>
           </div>
         </div>
 
@@ -256,23 +260,36 @@ export const Header: React.FC<HeaderProps> = ({
               <BookOpen className="w-3.5 h-3.5" />
               <span>INSTITUTIONAL MEMORY</span>
             </button>
+
+            <button
+              onClick={() => onModeChange('technicians')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+                currentMode === 'technicians'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>TECHNICIANS</span>
+            </button>
           </div>
         </div>
 
         {/* Investigation Pipeline Sub-Bar */}
         {currentMode === 'investigation' && (
-          <nav className="py-2.5 overflow-x-auto scrollbar-none">
+          <nav className="py-2 overflow-x-auto scrollbar-none w-full border-t border-slate-900/80">
             {investigationSubView === 'workflow' ? (
-              <div className="flex items-center justify-between gap-3 text-xs font-mono whitespace-nowrap">
-                <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="flex items-center justify-between gap-1 sm:gap-1.5 text-[11px] xl:text-xs font-mono whitespace-nowrap w-full">
+                <div className="flex items-center justify-between gap-1 sm:gap-1.5 w-full">
                   {onBackToInvestigationsList && (
                     <button
                       onClick={onBackToInvestigationsList}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-800 text-cyan-300 font-bold mr-2 transition-colors shadow-sm"
+                      className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-800 text-cyan-300 font-bold transition-colors shrink-0 shadow-sm cursor-pointer"
                       title="Return to list of all investigations"
                     >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>← ALL INVESTIGATIONS</span>
+                      <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden md:inline">← ALL INVESTIGATIONS</span>
+                      <span className="md:hidden">← ALL</span>
                     </button>
                   )}
 
@@ -287,12 +304,15 @@ export const Header: React.FC<HeaderProps> = ({
                         <button
                           key={step.id}
                           disabled={true}
-                          className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-left opacity-35 cursor-not-allowed text-slate-500 border border-transparent select-none"
+                          className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded text-left opacity-35 cursor-not-allowed text-slate-500 border border-transparent select-none shrink-0"
                           title="Step 1 data required: Complete Step 1 (Incident Report) before opening Step 2"
                         >
-                          <span className="text-slate-600">{step.icon}</span>
-                          <span>{idx + 1}. {step.label}</span>
-                          <Lock className="w-2.5 h-2.5 ml-1 text-slate-600 shrink-0" />
+                          <span className="text-slate-600 shrink-0">{step.icon}</span>
+                          <span>
+                            {idx + 1}. <span className="hidden xl:inline">{step.label}</span>
+                            <span className="xl:hidden">{step.shortLabel}</span>
+                          </span>
+                          <Lock className="w-2.5 h-2.5 text-slate-600 shrink-0" />
                         </button>
                       );
                     }
@@ -301,18 +321,21 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         key={step.id}
                         onClick={() => onStepChange(step.id)}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded transition-colors text-left ${
+                        className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded transition-colors text-left shrink-0 cursor-pointer ${
                           isActive
-                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold shadow-sm'
                             : isCompleted
                             ? 'text-slate-300 hover:text-cyan-300 hover:bg-slate-900 border border-slate-800/80'
                             : 'text-slate-400 hover:text-slate-300 hover:bg-slate-900 border border-transparent'
                         }`}
                       >
-                        <span className="text-slate-400">{step.icon}</span>
-                        <span>{idx + 1}. {step.label}</span>
+                        <span className="text-slate-400 shrink-0">{step.icon}</span>
+                        <span>
+                          {idx + 1}. <span className="hidden xl:inline">{step.label}</span>
+                          <span className="xl:hidden">{step.shortLabel}</span>
+                        </span>
                         {isCompleted && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block ml-1" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0" />
                         )}
                       </button>
                     );
@@ -320,7 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between text-xs font-mono py-0.5">
+              <div className="flex items-center justify-between text-xs font-mono py-0.5 w-full">
                 <div className="flex items-center gap-2 text-slate-400">
                   <span className="w-2 h-2 rounded-full bg-cyan-400" />
                   <span className="font-bold text-slate-200">INCIDENT INVESTIGATIONS DIRECTORY</span>
@@ -329,6 +352,15 @@ export const Header: React.FC<HeaderProps> = ({
                     Chronologically descending by creation date
                   </span>
                 </div>
+                {onStartNewInvestigation && (
+                  <button
+                    onClick={onStartNewInvestigation}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-extrabold text-xs transition-all shadow-md shadow-cyan-500/20 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>NEW INCIDENT INVESTIGATION</span>
+                  </button>
+                )}
               </div>
             )}
           </nav>
