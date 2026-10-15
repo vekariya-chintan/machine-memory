@@ -1,44 +1,121 @@
-import { initializeApp, getApps, getApp, FirebaseOptions } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp, FirebaseOptions } from 'firebase/app';
 import { getFirestore, doc, getDocFromServer, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-// Read Firebase Web configuration from Vite client environment variables (VITE_FIREBASE_*)
-const env = import.meta.env;
+export let app: FirebaseApp;
+export let db: Firestore;
+export let auth: Auth;
+export let storage: FirebaseStorage;
 
-const projectId = env.VITE_FIREBASE_PROJECT_ID || '';
-const apiKey = env.VITE_FIREBASE_API_KEY || '';
-const appId = env.VITE_FIREBASE_APP_ID || '';
-const authDomain = env.VITE_FIREBASE_AUTH_DOMAIN || '';
-const storageBucket = env.VITE_FIREBASE_STORAGE_BUCKET || '';
-const messagingSenderId = env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
-const measurementId = env.VITE_FIREBASE_MEASUREMENT_ID || '';
-const firestoreDatabaseId = env.VITE_FIREBASE_DATABASE_ID || '';
+let initPromise: Promise<void> | null = null;
 
-const firebaseConfig: FirebaseOptions = {
-  apiKey,
-  authDomain,
-  projectId,
-  storageBucket,
-  messagingSenderId,
-  appId,
-  measurementId,
+type RuntimeFirebaseConfig = {
+  projectId?: string;
+  appId?: string;
+  apiKey?: string;
+  authDomain?: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  measurementId?: string;
+  firestoreDatabaseId?: string;
 };
 
-// Initialize Firebase App instance
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+function readViteFallbackConfig(): RuntimeFirebaseConfig {
+  const env = import.meta.env;
+  return {
+    projectId: env.VITE_FIREBASE_PROJECT_ID || '',
+    appId: env.VITE_FIREBASE_APP_ID || '',
+    apiKey: env.VITE_FIREBASE_API_KEY || '',
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || '',
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+    measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || '',
+    firestoreDatabaseId: env.VITE_FIREBASE_DATABASE_ID || '',
+  };
+}
 
-// Initialize Firestore with specific Database ID
-export const db: Firestore =
-  firestoreDatabaseId && firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, firestoreDatabaseId)
-    : getFirestore(app);
+async function fetchRuntimeFirebaseConfig(): Promise<RuntimeFirebaseConfig> {
+  try {
+    const res = await fetch('/api/config/firebase');
+    if (!res.ok) {
+      throw new Error(`Firebase config endpoint returned ${res.status}`);
+    }
+    return (await res.json()) as RuntimeFirebaseConfig;
+  } catch (error) {
+    console.warn('Failed to load /api/config/firebase; falling back to Vite env.', error);
+    return readViteFallbackConfig();
+  }
+}
 
-// Initialize Firebase Auth
-export const auth: Auth = getAuth(app);
+function resolveFirebaseConfig(runtime: RuntimeFirebaseConfig): {
+  options: FirebaseOptions;
+  firestoreDatabaseId: string;
+} {
+  const fallback = readViteFallbackConfig();
+  const apiKey = runtime.apiKey || fallback.apiKey || '';
+  const projectId = runtime.projectId || fallback.projectId || '';
+  const appId = runtime.appId || fallback.appId || '';
+  const authDomain = runtime.authDomain || fallback.authDomain || '';
+  const storageBucket = runtime.storageBucket || fallback.storageBucket || '';
+  const messagingSenderId = runtime.messagingSenderId || fallback.messagingSenderId || '';
+  const measurementId = runtime.measurementId || fallback.measurementId || '';
+  const firestoreDatabaseId = runtime.firestoreDatabaseId || fallback.firestoreDatabaseId || '';
 
-// Initialize Firebase Storage
-export const storage: FirebaseStorage = getStorage(app);
+  if (!apiKey || !projectId) {
+    throw new Error(
+      'Firebase configuration is incomplete. Set VITE_FIREBASE_* / FIREBASE_* env vars on the server (see /api/config/firebase).'
+    );
+  }
+
+  return {
+    options: {
+      apiKey,
+      authDomain,
+      projectId,
+      storageBucket,
+      messagingSenderId,
+      appId,
+      measurementId,
+    },
+    firestoreDatabaseId,
+  };
+}
+
+function bindFirebaseServices(firebaseApp: FirebaseApp, firestoreDatabaseId: string) {
+  app = firebaseApp;
+  db =
+    firestoreDatabaseId && firestoreDatabaseId !== '(default)'
+      ? getFirestore(firebaseApp, firestoreDatabaseId)
+      : getFirestore(firebaseApp);
+  auth = getAuth(firebaseApp);
+  storage = getStorage(firebaseApp);
+}
+
+/**
+ * Initialize Firebase from the server-provided runtime config endpoint.
+ * Safe to call multiple times; subsequent calls reuse the same promise/app.
+ */
+export async function initFirebase(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const runtime = await fetchRuntimeFirebaseConfig();
+      const { options, firestoreDatabaseId } = resolveFirebaseConfig(runtime);
+      const firebaseApp = getApps().length ? getApp() : initializeApp(options);
+      bindFirebaseServices(firebaseApp, firestoreDatabaseId);
+    })().catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+  }
+
+  await initPromise;
+}
+
+/** Ensure Firebase is ready before Auth/Firestore usage. */
+export async function ensureFirebase(): Promise<void> {
+  await initFirebase();
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -75,10 +152,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth?.currentUser?.emailVerified || null,
       isAnonymous: auth?.currentUser?.isAnonymous || null,
       tenantId: auth?.currentUser?.tenantId || null,
-      providerInfo: auth?.currentUser?.providerData?.map((provider) => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || [],
+      providerInfo:
+        auth?.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
     },
     operationType,
     path,
@@ -153,10 +231,9 @@ export function classifyFirestoreError(error: unknown): ClassifiedFirestoreError
     type: 'other',
     title: 'Firestore Database Connection Error',
     message: msg || 'An unexpected error occurred while communicating with the Firestore database.',
-    resolution:
-      'Verify your Firebase project configuration and click Retry Connection below.',
-      details: code ? `[${code}] ${msg}` : msg,
-      timestamp: new Date().toLocaleTimeString(),
+    resolution: 'Verify your Firebase project configuration and click Retry Connection below.',
+    details: code ? `[${code}] ${msg}` : msg,
+    timestamp: new Date().toLocaleTimeString(),
   };
 }
 
@@ -166,6 +243,7 @@ export async function testFirestoreConnection(): Promise<{
   errorInfo?: ClassifiedFirestoreError;
 }> {
   try {
+    await ensureFirebase();
     // getDocFromServer forces an actual network round-trip to the Firestore server
     await getDocFromServer(doc(db, 'test', 'connection'));
     return { connected: true };
@@ -178,5 +256,3 @@ export async function testFirestoreConnection(): Promise<{
     };
   }
 }
-
-testFirestoreConnection().catch(() => {});
