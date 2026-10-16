@@ -647,7 +647,7 @@ export default function App() {
                       handleSelectMachineId(activeMachineIdResolved);
                       setCurrentStep('capture');
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors ml-1"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors ml-1 cursor-pointer"
                     title="Reset to step 1"
                   >
                     <RotateCcw className="w-3 h-3" />

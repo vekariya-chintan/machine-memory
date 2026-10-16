@@ -125,7 +125,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
       }
       const suggestedId = `M${String(nextNum).padStart(3, '0')}`;
       setFormId(suggestedId);
-      applyPreset('cnc_spindle');
+      // applyPreset('cnc_spindle');
     }
     setErrorMsg('');
   }, [isOpen, initialMachine, mode]);
@@ -402,7 +402,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -738,14 +738,14 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors"
+              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
             >
               CANCEL
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+              className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] cursor-pointer"
             >
               {isSaving ? (
                 <>

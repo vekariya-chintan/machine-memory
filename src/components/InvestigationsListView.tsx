@@ -349,7 +349,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
                     <button
                       onClick={() => onOpenInvestigation(inc)}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-700/80 text-cyan-300 font-bold text-xs font-mono transition-colors group-hover:border-cyan-500 shadow-sm"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-700/80 text-cyan-300 font-bold text-xs font-mono transition-colors group-hover:border-cyan-500 shadow-sm cursor-pointer"
                       title="Open full investigation workflow for this incident"
                     >
                       <span>OPEN INVESTIGATION</span>
@@ -414,19 +414,19 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
                     {hasMedia ? (
                       <button
                         onClick={() => setSelectedProofIncident(inc)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-950/70 hover:bg-purple-900 border border-purple-800/80 text-purple-300 text-[11px] font-bold transition-colors"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-950/70 hover:bg-purple-900 border border-purple-800/80 text-purple-300 text-[11px] font-bold transition-colors cursor-pointer"
                         title="View inspection photos, video clips, and voice sign-off attached to this investigation"
                       >
                         <Camera className="w-3 h-3 text-purple-400" />
                         <span>VIEW MULTIMEDIA PROOF</span>
                       </button>
                     ) : (
-                      <span className="text-slate-600 text-[10px]">Logged in memory</span>
+                      <span className="text-slate-600 text-[10px]"></span>
                     )}
 
                     <button
                       onClick={() => onOpenInvestigation(inc)}
-                      className="text-cyan-400 hover:text-cyan-300 text-[11px] font-bold flex items-center gap-1 ml-1"
+                      className="text-cyan-400 hover:text-cyan-300 text-[11px] font-bold flex items-center gap-1 ml-1 cursor-pointer"
                     >
                       <span>Open Investigation Workflow</span>
                       <ChevronRight className="w-3 h-3" />
@@ -452,7 +452,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
               </div>
               <button
                 onClick={() => setSelectedProofIncident(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-1 rounded bg-slate-800 text-xs"
+                className="text-slate-400 hover:text-slate-100 px-2 py-1 rounded bg-slate-800 text-xs cursor-pointer"
               >
                 ✕ CLOSE
               </button>
@@ -545,7 +545,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
                   setSelectedProofIncident(null);
                   onOpenInvestigation(targetInc);
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-colors cursor-pointer"
               >
                 <span>OPEN IN INVESTIGATOR</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -553,7 +553,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
               <button
                 onClick={() => setSelectedProofIncident(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors"
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -573,7 +573,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
               </span>
               <button
                 onClick={() => setActivePhotoModal(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800"
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
               >
                 ✕ CLOSE
               </button>

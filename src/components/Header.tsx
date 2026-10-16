@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-slate-800 hidden lg:inline">|</span>
             <div className="hidden lg:flex flex-col text-[10px] xl:text-[11px] font-mono leading-tight text-slate-400">
               <span className="font-semibold text-slate-300 tracking-tight">INDUSTRIAL RELIABILITY &amp;</span>
-              <span className="text-slate-400 tracking-tight">INCIDENT INVESTIGATION ENGINE</span>
+              <span className="font-semibold text-slate-300 tracking-tight">INCIDENT INVESTIGATION ENGINE</span>
             </div>
           </div>
 
@@ -209,7 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-1.5 font-mono text-xs whitespace-nowrap">
             <button
               onClick={() => onModeChange('dashboard')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
                 currentMode === 'dashboard'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
@@ -226,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onBackToInvestigationsList();
                 }
               }}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
                 currentMode === 'investigation'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
@@ -238,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onModeChange('assets')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
                 currentMode === 'assets'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
@@ -250,7 +250,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onModeChange('repository')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
                 currentMode === 'repository'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
@@ -262,7 +262,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onModeChange('technicians')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
                 currentMode === 'technicians'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
@@ -280,18 +280,6 @@ export const Header: React.FC<HeaderProps> = ({
             {investigationSubView === 'workflow' ? (
               <div className="flex items-center justify-between gap-1 sm:gap-1.5 text-[11px] xl:text-xs font-mono whitespace-nowrap w-full">
                 <div className="flex items-center justify-between gap-1 sm:gap-1.5 w-full">
-                  {onBackToInvestigationsList && (
-                    <button
-                      onClick={onBackToInvestigationsList}
-                      className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-800 text-cyan-300 font-bold transition-colors shrink-0 shadow-sm cursor-pointer"
-                      title="Return to list of all investigations"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden md:inline">ALL INVESTIGATIONS</span>
-                      <span className="md:hidden">← ALL</span>
-                    </button>
-                  )}
-
                   {STEPS.map((step, idx) => {
                     const isActive = currentStep === step.id;
                     const stepIndex = STEPS.findIndex((s) => s.id === currentStep);

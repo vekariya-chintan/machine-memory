@@ -153,13 +153,6 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           </div>
           <h2 className="text-xl font-bold text-slate-100">Plant-Wide Memory Knowledge Base</h2>
         </div>
-
-        <button
-          onClick={onBackToWalkthrough}
-          className="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-colors self-start sm:self-center"
-        >
-          ← Back to Investigation
-        </button>
       </div>
 
       {/* Tabs & Machine Filter */}
@@ -167,7 +160,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
         <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded border border-slate-800 overflow-x-auto">
           <button
             onClick={() => setActiveTab('knowledge')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'knowledge'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -177,7 +170,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           </button>
           <button
             onClick={() => setActiveTab('incidents')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'incidents'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -187,7 +180,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           </button>
           <button
             onClick={() => setActiveTab('machines')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'machines'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -197,7 +190,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           </button>
           <button
             onClick={() => setActiveTab('query')}
-            className={`px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'query'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -263,7 +256,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
             </div>
             <button
               onClick={() => setIsAddKnowledgeModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] shrink-0 self-start sm:self-center"
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] shrink-0 self-start sm:self-center cursor-pointer"
               title="Add a new technician heuristic or OEM tip to the knowledge base"
             >
               <Plus className="w-4 h-4 text-slate-950 stroke-[2.5]" />
@@ -318,20 +311,20 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                   {k.media.photos && k.media.photos.length > 0 && (
                     <button
                       onClick={() => setActivePhotoUrl(k.media?.photos?.[0]?.url || null)}
-                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors"
+                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
                     >
                       <Camera className="w-3 h-3 text-cyan-400" />
                       <span>{k.media.photos.length} Verified Photos</span>
                     </button>
                   )}
                   {k.media.video_url && (
-                    <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px]">
+                    <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px] cursor-pointer">
                       <Video className="w-3 h-3 text-purple-400" />
                       <span>Runout Video Clip</span>
                     </span>
                   )}
                   {k.media.audio_url && (
-                    <div className="flex items-center gap-2 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                    <div className="flex items-center gap-2 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer">
                       <Mic className="w-3 h-3 text-emerald-400" />
                       <audio src={k.media.audio_url} controls className="h-6 w-32" />
                     </div>
@@ -465,7 +458,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               <button
                 onClick={handleAskMemory}
                 disabled={isAiLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all disabled:opacity-50 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isAiLoading ? 'ANALYZING...' : 'QUERY'}</span>
@@ -500,7 +493,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               </div>
               <button
                 onClick={() => setSelectedMediaIncident(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-1 rounded bg-slate-800"
+                className="text-slate-400 hover:text-slate-100 px-2 py-1 rounded bg-slate-800 cursor-pointer"
               >
                 ✕ CLOSE
               </button>
@@ -565,7 +558,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               </span>
               <button
                 onClick={() => setActivePhotoUrl(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800"
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
               >
                 ✕ CLOSE
               </button>

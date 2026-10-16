@@ -511,7 +511,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
               </span>
               <button
                 onClick={() => setSelectedPhotoModal(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800"
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
               >
                 ✕ CLOSE
               </button>

@@ -283,10 +283,10 @@ export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
         </div>
         <button
           onClick={onProceedToVerification}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
         >
           <CheckCircle2 className="w-4 h-4 text-slate-950" />
-          <span>PROCEED TO HUMAN VERIFICATION &amp; PROOF MEDIA</span>
+          <span>PROCEED TO HUMAN VERIFICATION</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

@@ -344,7 +344,6 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
               <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 font-semibold">
                 CENTRAL ASSET REGISTRY
               </span>
-              <span>ISO 10816-3 BASELINE OPERATING SPECIFICATIONS</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-2">
               <Cpu className="w-6 h-6 text-cyan-400" />
@@ -358,10 +357,10 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               onClick={openCreateModal}
-              className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-2 shadow-lg shadow-cyan-950 transition-colors"
+              className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-2 shadow-lg shadow-cyan-950 transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>REGISTER ASSET</span>
+              <span>REGISTER NEW ASSET</span>
             </button>
           </div>
         </div>
@@ -423,7 +422,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <button
             onClick={() => setSubsystemFilter('all')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'all'
                 ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -433,7 +432,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           </button>
           <button
             onClick={() => setSubsystemFilter('cnc_spindle')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'cnc_spindle'
                 ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -443,7 +442,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           </button>
           <button
             onClick={() => setSubsystemFilter('hydraulic_pump')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'hydraulic_pump'
                 ? 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -453,7 +452,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           </button>
           <button
             onClick={() => setSubsystemFilter('planetary_gearbox')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'planetary_gearbox'
                 ? 'bg-purple-950 border-purple-700 text-purple-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -463,7 +462,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           </button>
           <button
             onClick={() => setSubsystemFilter('coolant_pump')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'coolant_pump'
                 ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -473,7 +472,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
           </button>
           <button
             onClick={() => setSubsystemFilter('power_generator')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
               subsystemFilter === 'power_generator'
                 ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
@@ -545,7 +544,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                         <span>·</span>
                         <span>OEM: <strong className="text-slate-300">{m.manufacturer}</strong></span>
                         <span>·</span>
-                        <span>LOC: <strong className="text-slate-300">{m.location}</strong></span>
+                        <span>LOCATION: <strong className="text-slate-300">{m.location}</strong></span>
                       </div>
                     </div>
                   </div>
@@ -556,7 +555,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                         onSelectMachineId(m.machine_id);
                         onStartInvestigation(m.machine_id);
                       }}
-                      className="px-3 py-1.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="Investigate incident for this machine"
                     >
                       <Radio className="w-3.5 h-3.5 text-cyan-400" />
@@ -565,7 +564,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
 
                     <button
                       onClick={() => openEditModal(m)}
-                      className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 border border-slate-700 transition-colors"
+                      className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 border border-slate-700 transition-colors cursor-pointer"
                       title="Edit asset specifications"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -575,13 +574,13 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                       <div className="flex items-center gap-1 bg-rose-950 p-1 rounded border border-rose-800">
                         <button
                           onClick={() => handleDelete(m.machine_id)}
-                          className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-mono font-bold"
+                          className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-mono font-bold cursor-pointer"
                         >
                           CONFIRM
                         </button>
                         <button
                           onClick={() => setDeleteConfirmId(null)}
-                          className="p-1 text-slate-400 hover:text-slate-200 text-[10px]"
+                          className="p-1 text-slate-400 hover:text-slate-200 text-[10px] cursor-pointer"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -589,7 +588,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                     ) : (
                       <button
                         onClick={() => setDeleteConfirmId(m.machine_id)}
-                        className="p-1.5 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors"
+                        className="p-1.5 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors cursor-pointer"
                         title="Delete asset"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

@@ -79,7 +79,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
             MACHINE<span className="text-cyan-400">MEMORY</span>
           </h1>
-          <span className="text-xs font-mono text-cyan-400/90 font-bold tracking-widest uppercase mt-1">
+          <span className="text-xs font-mono text-cyan-400/90 font-bold tracking-widest mt-1">
             By Team PromptNova
           </span>
         </div>

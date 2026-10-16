@@ -378,7 +378,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                   {!isRecordingAudio ? (
                     <button
                       onClick={startAudioRecord}
-                      className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Mic className="w-3.5 h-3.5" />
                       <span>START RECORDING</span>
@@ -386,7 +386,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                   ) : (
                     <button
                       onClick={stopAudioRecord}
-                      className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono flex items-center gap-1.5 animate-pulse"
+                      className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono flex items-center gap-1.5 animate-pulse cursor-pointer"
                     >
                       <Square className="w-3.5 h-3.5" />
                       <span>STOP RECORDING</span>
@@ -525,10 +525,10 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
             <button
               onClick={handleCommit}
               disabled={isSubmitting}
-              className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50 cursor-pointer"
             >
               <Database className="w-4 h-4 text-slate-950" />
-              <span>{isSubmitting ? 'SAVING MEMORY...' : 'COMMIT TO INSTITUTIONAL MEMORY'}</span>
+              <span>{isSubmitting ? 'SAVING MEMORY...' : 'SAVE & CLOSE INVESTIGATION'}</span>
             </button>
           </div>
         </div>
@@ -640,7 +640,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
           <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <button
               onClick={() => setIsCommitted(false)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-mono transition-colors"
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-mono transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>EDIT VERIFICATION RECORD</span>
@@ -649,7 +649,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={onViewAllMemory}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 font-bold text-xs font-mono transition-all"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 font-bold text-xs font-mono transition-all cursor-pointer"
               >
                 <span>BROWSE REPOSITORY (SEE SAVED MEDIA)</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -658,10 +658,10 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               {onStartNewInvestigation && (
                 <button
                   onClick={onStartNewInvestigation}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>START NEXT INVESTIGATION (BENEFITS FROM THIS MEMORY)</span>
+                  <span>START NEW INVESTIGATION</span>
                 </button>
               )}
             </div>
@@ -680,7 +680,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               </span>
               <button
                 onClick={() => setActivePhotoModal(null)}
-                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800"
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
               >
                 ✕ CLOSE
               </button>

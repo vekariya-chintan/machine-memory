@@ -89,10 +89,6 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2 text-[11px] font-mono text-cyan-400">
-                <Database className="w-3.5 h-3.5" />
-                <span>INSTITUTIONAL MEMORY EXPANSION</span>
-              </div>
               <h2 className="text-base sm:text-lg font-bold text-slate-100">
                 Add New Knowledge &amp; Technician Tip
               </h2>
@@ -100,7 +96,7 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -262,14 +258,14 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                className="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? (
                   <span>Saving...</span>
