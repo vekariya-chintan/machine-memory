@@ -27,6 +27,8 @@ import {
 import { Machine, Incident, KnowledgeItem } from '../types/industrial';
 import { PipelineStep } from './Header';
 import { ClassifiedFirestoreError } from '../lib/firebase';
+import { fetchIncidentsPage } from '../services/machineMemoryService';
+import { DocumentSnapshot } from 'firebase/firestore';
 
 interface DashboardViewProps {
   machines: Machine[];
@@ -111,6 +113,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ).toFixed(2)
       : '0.00';
 
+  // Pagination and sorting state
+  const [machinePage, setMachinePage] = React.useState(1);
+  const [incidentPage, setIncidentPage] = React.useState(1);
+  const [pagedIncidentsState, setPagedIncidentsState] = React.useState<Incident[]>([]);
+  const [incidentCursors, setIncidentCursors] = React.useState<(DocumentSnapshot | null | undefined)[]>([null]);
+  const [hasMoreIncidents, setHasMoreIncidents] = React.useState(false);
+  const [isLoadingIncidents, setIsLoadingIncidents] = React.useState(false);
+
+  React.useEffect(() => {
+    setMachinePage(1);
+    setIncidentPage(1);
+    setIncidentCursors([null]);
+  }, [activeMachineId]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    setIsLoadingIncidents(true);
+    const cursor = incidentCursors[incidentPage - 1] || null;
+    fetchIncidentsPage(10, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedIncidentsState(res.incidents);
+          setHasMoreIncidents(res.hasMore);
+          if (res.lastVisible && incidentCursors.length <= incidentPage) {
+            setIncidentCursors((prev) => {
+              const next = [...prev];
+              next[incidentPage] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsLoadingIncidents(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingIncidents(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [incidentPage, activeMachineId]);
+
+  const handleIncidentPageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setIncidentPage(newPage);
+  };
+
+  const sortedMachines = [...validMachines].sort((a, b) => {
+    const timeA = new Date(a.installed_date || '').getTime() || 0;
+    const timeB = new Date(b.installed_date || '').getTime() || 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return b.machine_id.localeCompare(a.machine_id);
+  });
+  const totalMachinePages = Math.ceil(sortedMachines.length / 5) || 1;
+  const pagedMachines = sortedMachines.slice((machinePage - 1) * 5, machinePage * 5);
+
+  // Filtered lists for particular asset mode
+  const particularIncidents = selectedMachine
+    ? pagedIncidentsState.filter((inc) => inc.machine_id === selectedMachine.machine_id)
+    : pagedIncidentsState;
+
+  const totalIncidentsCount = safeIncidents.length;
+  const totalIncidentPages = Math.max(1, Math.ceil(totalIncidentsCount / 10));
+  const pagedIncidents = particularIncidents;
+
   // Subsystem badge helper
   const getSubsystemLabel = (type?: string) => {
     switch (type) {
@@ -128,11 +194,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         return 'Subsystem';
     }
   };
-
-  // Filtered lists for particular asset mode
-  const particularIncidents = selectedMachine
-    ? safeIncidents.filter((inc) => inc.machine_id === selectedMachine.machine_id)
-    : safeIncidents;
 
   const particularKnowledge = selectedMachine
     ? safeKnowledge.filter(
@@ -620,8 +681,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <th className="py-2.5 px-3 text-right">ACTION</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 whitespace-nowrap">
-                {validMachines.map((m) => {
+               <tbody className="divide-y divide-slate-800/60 whitespace-nowrap">
+                {pagedMachines.map((m) => {
                   if (!m || !m.machine_id) return null;
                   const isAlert = m.status === 'warning' || m.status === 'critical';
                   const assetIncidentsCount = safeIncidents.filter((i) => i.machine_id === m.machine_id).length;
@@ -680,6 +741,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {sortedMachines.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 px-1 border-t border-slate-800 text-xs font-mono text-slate-400">
+              <span>
+                Page {machinePage} of {totalMachinePages} ({sortedMachines.length} total records)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMachinePage((p) => Math.max(1, p - 1))}
+                  disabled={machinePage === 1 || sortedMachines.length <= 5}
+                  className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setMachinePage((p) => Math.min(totalMachinePages, p + 1))}
+                  disabled={machinePage >= totalMachinePages || sortedMachines.length <= 5}
+                  className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* -------------- PARTICULAR ASSET MODE: ISO SPECIFICATIONS & PARAMETERS -------------- */
@@ -940,84 +1026,109 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 whitespace-nowrap">
-                <tr>
-                  <th className="py-2.5 px-3">INCIDENT</th>
-                  <th className="py-2.5 px-3">DATE</th>
-                  <th className="py-2.5 px-3">ASSET</th>
-                  <th className="py-2.5 px-3">SYMPTOM</th>
-                  <th className="py-2.5 px-3">CONFIRMED CAUSE</th>
-                  <th className="py-2.5 px-3">REPAIR ACTION</th>
-                  <th className="py-2.5 px-3">DOWNTIME</th>
-                  <th className="py-2.5 px-3">STATUS</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80 text-slate-300 whitespace-nowrap">
-                {particularIncidents.map((inc) => (
-                  <tr
-                    key={inc?.incident_id || Math.random().toString()}
-                    className="hover:bg-slate-950/40"
-                  >
-                    <td className="py-2.5 px-3 font-bold text-cyan-400 whitespace-nowrap">{inc?.incident_id}</td>
-                    <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">{inc?.date}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-200 whitespace-nowrap">
-                      <button
-                        onClick={() => onSelectMachineId(inc.machine_id)}
-                        className="text-cyan-400 hover:underline"
-                      >
-                        {inc?.machine_id}
-                      </button>
-                    </td>
-                    <td className="py-2.5 px-3 text-amber-400 whitespace-nowrap">
-                      <div className="relative group inline-block max-w-[200px] align-middle">
-                        <span className="block truncate font-mono">
-                          {inc?.symptom || '-'}
-                        </span>
-                        {inc?.symptom && inc.symptom.length > 22 && (
-                          <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
-                            {inc.symptom}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-200 whitespace-nowrap">
-                      <div className="relative group inline-block max-w-[220px] align-middle">
-                        <span className="block truncate font-mono">
-                          {inc?.cause || '-'}
-                        </span>
-                        {inc?.cause && inc.cause.length > 25 && (
-                          <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
-                            {inc.cause}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-cyan-300 whitespace-nowrap">
-                      <div className="relative group inline-block max-w-[220px] align-middle">
-                        <span className="block truncate font-mono">
-                          {inc?.repair || '-'}
-                        </span>
-                        {inc?.repair && inc.repair.length > 25 && (
-                          <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
-                            {inc.repair}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 font-bold text-emerald-400 tabular-nums whitespace-nowrap">
-                      {inc?.downtime}m
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-bold uppercase">
-                        {inc?.status || 'resolved'}
-                      </span>
-                    </td>
+          <div className="space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 whitespace-nowrap">
+                  <tr>
+                    <th className="py-2.5 px-3">INCIDENT</th>
+                    <th className="py-2.5 px-3">DATE</th>
+                    <th className="py-2.5 px-3">ASSET</th>
+                    <th className="py-2.5 px-3">SYMPTOM</th>
+                    <th className="py-2.5 px-3">CONFIRMED CAUSE</th>
+                    <th className="py-2.5 px-3">REPAIR ACTION</th>
+                    <th className="py-2.5 px-3">DOWNTIME</th>
+                    <th className="py-2.5 px-3">STATUS</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 text-slate-300 whitespace-nowrap">
+                  {pagedIncidents.map((inc) => (
+                    <tr
+                      key={inc?.incident_id || Math.random().toString()}
+                      className="hover:bg-slate-950/40"
+                    >
+                      <td className="py-2.5 px-3 font-bold text-cyan-400 whitespace-nowrap">{inc?.incident_id}</td>
+                      <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">{inc?.date}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-200 whitespace-nowrap">
+                        <button
+                          onClick={() => onSelectMachineId(inc.machine_id)}
+                          className="text-cyan-400 hover:underline"
+                        >
+                          {inc?.machine_id}
+                        </button>
+                      </td>
+                      <td className="py-2.5 px-3 text-amber-400 whitespace-nowrap">
+                        <div className="relative group inline-block max-w-[200px] align-middle">
+                          <span className="block truncate font-mono">
+                            {inc?.symptom || '-'}
+                          </span>
+                          {inc?.symptom && inc.symptom.length > 22 && (
+                            <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
+                              {inc.symptom}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-200 whitespace-nowrap">
+                        <div className="relative group inline-block max-w-[220px] align-middle">
+                          <span className="block truncate font-mono">
+                            {inc?.cause || '-'}
+                          </span>
+                          {inc?.cause && inc.cause.length > 25 && (
+                            <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
+                              {inc.cause}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-cyan-300 whitespace-nowrap">
+                        <div className="relative group inline-block max-w-[220px] align-middle">
+                          <span className="block truncate font-mono">
+                            {inc?.repair || '-'}
+                          </span>
+                          {inc?.repair && inc.repair.length > 25 && (
+                            <div className="absolute z-50 left-0 bottom-full mb-1 hidden group-hover:block w-max max-w-sm p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 shadow-xl font-sans normal-case pointer-events-none whitespace-normal leading-relaxed">
+                              {inc.repair}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                        {inc?.downtime}m
+                      </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-bold uppercase">
+                          {inc?.status || 'resolved'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Server-side Pagination Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 px-1 border-t border-slate-800 text-xs font-mono text-slate-400">
+              <span>
+                Page <strong className="text-cyan-400">{incidentPage}</strong> of <strong className="text-slate-400">{totalIncidentPages}</strong> ({totalIncidentsCount} total records)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleIncidentPageChange(incidentPage - 1)}
+                  disabled={incidentPage === 1 || isLoadingIncidents || totalIncidentsCount <= 10}
+                  className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handleIncidentPageChange(incidentPage + 1)}
+                  disabled={!hasMoreIncidents || isLoadingIncidents || totalIncidentsCount <= 10}
+                  className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1126,7 +1237,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 No institutional knowledge on record for {selectedMachineId}.
               </div>
             </div>
-          ) : 
+          ) : (
             particularKnowledge.slice(0, 2).map((k) => (
               <div
                 key={k?.knowledge_id || Math.random().toString()}
@@ -1150,7 +1261,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 </div>
               </div>
-            ))}
+            ))
+          )}
           </div>
         </div>
       </div>

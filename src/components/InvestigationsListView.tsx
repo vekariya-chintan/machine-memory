@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldAlert,
   Plus,
@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Incident, Machine } from '../types/industrial';
 import { SearchableDropdown, DropdownOption } from './SearchableDropdown';
+import { fetchIncidentsPage } from '../services/machineMemoryService';
+import { DocumentSnapshot } from 'firebase/firestore';
 
 interface InvestigationsListViewProps {
   incidents: Incident[];
@@ -45,6 +47,45 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
   const [selectedProofIncident, setSelectedProofIncident] = useState<Incident | null>(null);
   const [activePhotoModal, setActivePhotoModal] = useState<string | null>(null);
 
+  // Server-side pagination state (10 records per page, latest at top)
+  const [page, setPage] = useState<number>(1);
+  const [pagedIncidents, setPagedIncidents] = useState<Incident[]>([]);
+  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingPage(true);
+    const cursor = pageCursors[page - 1] || null;
+    fetchIncidentsPage(10, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedIncidents(res.incidents);
+          setHasMore(res.hasMore);
+          if (res.lastVisible && pageCursors.length <= page) {
+            setPageCursors((prev) => {
+              const next = [...prev];
+              next[page] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsLoadingPage(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingPage(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [page]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setPage(newPage);
+  };
+
   // Map machine names for display
   const machineMap = useMemo(() => {
     const map: Record<string, Machine> = {};
@@ -66,19 +107,9 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
     }));
   }, [machines]);
 
-  // Sort ALL investigations in strict descending order based on creation date
-  const sortedIncidents = useMemo(() => {
-    const safeList = (incidents || []).filter((i): i is Incident => Boolean(i && i.incident_id));
-    return [...safeList].sort((a, b) => {
-      const timeA = new Date(a.date).getTime() || 0;
-      const timeB = new Date(b.date).getTime() || 0;
-      return timeB - timeA;
-    });
-  }, [incidents]);
-
   // Filter investigations based on search query and status filter
   const filteredIncidents = useMemo(() => {
-    return sortedIncidents.filter((inc) => {
+    return (pagedIncidents || []).filter((inc) => {
       // Status filter
       if (statusFilter !== 'all' && inc.status !== statusFilter) {
         return false;
@@ -111,14 +142,14 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
       return true;
     });
-  }, [sortedIncidents, statusFilter, searchQuery, machineMap]);
+  }, [pagedIncidents, statusFilter, searchQuery, machineMap]);
 
-  // KPI Calculations
-  const totalCount = sortedIncidents.length;
-  const verifiedCount = sortedIncidents.filter((i) => i.status === 'verified' || i.status === 'resolved').length;
-  const inProgressCount = sortedIncidents.filter((i) => i.status === 'investigating').length;
-  const totalDowntimeMinutes = sortedIncidents.reduce((sum, i) => sum + (i.downtime || 0), 0);
-  const mediaCount = sortedIncidents.filter((i) => Boolean(i.verification_media)).length;
+  // KPI Calculations based on paged / loaded dataset
+  const totalCount = (incidents || []).length;
+  const verifiedCount = pagedIncidents.filter((i) => i.status === 'verified' || i.status === 'resolved').length;
+  const inProgressCount = pagedIncidents.filter((i) => i.status === 'investigating').length;
+  const totalDowntimeMinutes = pagedIncidents.reduce((sum, i) => sum + (i.downtime || 0), 0);
+  const mediaCount = pagedIncidents.filter((i) => Boolean(i.verification_media)).length;
 
   return (
     <div className="space-y-6">
@@ -438,6 +469,29 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
           })}
         </div>
       )}
+
+      {/* Server-side Pagination Controls */}
+      <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
+        <div>
+          Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil(totalCount / 10))}</strong>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1 || isLoadingPage || totalCount <= 10}
+            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={!hasMore || isLoadingPage || totalCount <= 10}
+            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+          >
+            Next
+          </button>
+        </div>
+      </div>
 
       {/* Proof Media Lightbox Modal */}
       {selectedProofIncident && selectedProofIncident.verification_media && (

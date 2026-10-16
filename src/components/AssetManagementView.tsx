@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cpu,
   Plus,
@@ -21,9 +21,12 @@ import {
   X,
   Check,
   Info,
+  Clock,
 } from 'lucide-react';
 import { Machine, AssetSubsystemType, IsoMachineGroup, FoundationType } from '../types/industrial';
 import { AssetFormModal } from './AssetFormModal';
+import { fetchMachinesPage } from '../services/machineMemoryService';
+import { DocumentSnapshot } from 'firebase/firestore';
 
 interface AssetManagementViewProps {
   machines: Machine[];
@@ -238,7 +241,7 @@ const ASSET_PRESETS: Record<
 };
 
 export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
-  machines,
+  machines: propMachines,
   activeMachineId,
   onSelectMachineId,
   onStartInvestigation,
@@ -253,8 +256,47 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Server-side pagination state (10 records per page, latest at top)
+  const [page, setPage] = useState<number>(1);
+  const [pagedMachines, setPagedMachines] = useState<Machine[]>([]);
+  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingPage(true);
+    const cursor = pageCursors[page - 1] || null;
+    fetchMachinesPage(10, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedMachines(res.machines);
+          setHasMore(res.hasMore);
+          if (res.lastVisible && pageCursors.length <= page) {
+            setPageCursors((prev) => {
+              const next = [...prev];
+              next[page] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsLoadingPage(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingPage(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [page]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setPage(newPage);
+  };
+
   // Filter machines
-  const filteredMachines = machines.filter((m) => {
+  const filteredMachines = pagedMachines.filter((m) => {
     if (!m) return false;
     const matchesSearch =
       (m.machine_id && m.machine_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -270,23 +312,23 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
     return matchesSearch && matchesFilter;
   });
 
-  // Calculate Fleet Statistics
-  const totalAssets = machines.length;
-  const warningCount = machines.filter((m) => m?.status === 'warning').length;
-  const criticalCount = machines.filter((m) => m?.status === 'critical').length;
-  const nominalCount = machines.filter((m) => m?.status === 'nominal').length;
+  // Calculate Fleet Statistics based on loaded/paged dataset
+  const totalAssets = pagedMachines.length;
+  const warningCount = pagedMachines.filter((m) => m?.status === 'warning').length;
+  const criticalCount = pagedMachines.filter((m) => m?.status === 'critical').length;
+  const nominalCount = pagedMachines.filter((m) => m?.status === 'nominal').length;
   const avgVib =
     totalAssets > 0
       ? (
-          machines.reduce((acc, m) => acc + (m?.baseline_metrics?.normal_vibration_mms || 1.2), 0) /
+          pagedMachines.reduce((acc, m) => acc + (m?.baseline_metrics?.normal_vibration_mms || 1.2), 0) /
           totalAssets
         ).toFixed(2)
       : '1.20';
-  const totalKw = machines.reduce((acc, m) => acc + (m?.baseline_metrics?.power_baseline_kw || 0), 0).toFixed(1);
+  const totalKw = pagedMachines.reduce((acc, m) => acc + (m?.baseline_metrics?.power_baseline_kw || 0), 0).toFixed(1);
 
   // Suggest next machine ID
   const suggestNextId = () => {
-    const existingIds = machines.map((m) => m.machine_id);
+    const existingIds = pagedMachines.map((m) => m?.machine_id).filter(Boolean);
     for (let i = 1; i <= 999; i++) {
       const candidate = `M${String(i).padStart(3, '0')}`;
       if (!existingIds.includes(candidate)) {
@@ -377,11 +419,11 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
 
           <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
             <div className="text-[10px] font-mono text-slate-400 uppercase">Operational Status</div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm font-mono font-bold text-emerald-400">{nominalCount} NOM</span>
-              <span className="text-sm font-mono font-bold text-amber-400">{warningCount} WARN</span>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100 mt-1 flex items-center gap-2">
+              <span className="text-emerald-400">{nominalCount} <span className="text-xs font-normal">NOM</span></span>
+              <span className="text-amber-400">{warningCount} <span className="text-xs font-normal">WARN</span></span>
               {criticalCount > 0 && (
-                <span className="text-sm font-mono font-bold text-rose-400">{criticalCount} CRIT</span>
+                <span className="text-rose-400">{criticalCount} <span className="text-xs font-normal">CRIT</span></span>
               )}
             </div>
             <div className="text-[10px] font-mono text-slate-500 mt-0.5">Central Sync</div>
@@ -406,80 +448,94 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by Asset ID (e.g. M001), equipment name, model, location..."
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-          />
+      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 sm:p-4 space-y-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by Asset ID (e.g. M001), equipment name, model, location..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs font-mono">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <button
+              onClick={() => setSubsystemFilter('all')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'all'
+                  ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All Subsystems ({pagedMachines.length})
+            </button>
+            <button
+              onClick={() => setSubsystemFilter('cnc_spindle')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'cnc_spindle'
+                  ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              CNC Spindle
+            </button>
+            <button
+              onClick={() => setSubsystemFilter('hydraulic_pump')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'hydraulic_pump'
+                  ? 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Hydraulic Pump
+            </button>
+            <button
+              onClick={() => setSubsystemFilter('planetary_gearbox')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'planetary_gearbox'
+                  ? 'bg-purple-950 border-purple-700 text-purple-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Gearbox
+            </button>
+            <button
+              onClick={() => setSubsystemFilter('coolant_pump')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'coolant_pump'
+                  ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Coolant
+            </button>
+            <button
+              onClick={() => setSubsystemFilter('power_generator')}
+              className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
+                subsystemFilter === 'power_generator'
+                  ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Generator
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs font-mono">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <button
-            onClick={() => setSubsystemFilter('all')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'all'
-                ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Subsystems ({machines.length})
-          </button>
-          <button
-            onClick={() => setSubsystemFilter('cnc_spindle')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'cnc_spindle'
-                ? 'bg-cyan-950 border-cyan-700 text-cyan-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            CNC Spindle
-          </button>
-          <button
-            onClick={() => setSubsystemFilter('hydraulic_pump')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'hydraulic_pump'
-                ? 'bg-amber-950 border-amber-700 text-amber-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Hydraulic Pump
-          </button>
-          <button
-            onClick={() => setSubsystemFilter('planetary_gearbox')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'planetary_gearbox'
-                ? 'bg-purple-950 border-purple-700 text-purple-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Gearbox
-          </button>
-          <button
-            onClick={() => setSubsystemFilter('coolant_pump')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'coolant_pump'
-                ? 'bg-emerald-950 border-emerald-700 text-emerald-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Coolant Pump
-          </button>
-          <button
-            onClick={() => setSubsystemFilter('power_generator')}
-            className={`px-2.5 py-1.5 rounded border transition-colors whitespace-nowrap cursor-pointer ${
-              subsystemFilter === 'power_generator'
-                ? 'bg-rose-950 border-rose-700 text-rose-300 font-bold'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Power Generator
-          </button>
+        {/* Active filter count status */}
+        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-800/80 px-1">
+          <span>
+            Showing <strong className="text-slate-200">{filteredMachines.length}</strong> of{' '}
+            <strong className="text-slate-200">{(propMachines || []).length}</strong> assets
+          </span>
+          <span className="flex items-center gap-1 text-slate-500">
+            <Clock className="w-3 h-3 text-cyan-400" />
+            Sorted by creation date (newest first)
+          </span>
         </div>
       </div>
 
@@ -709,6 +765,29 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
         )}
       </div>
 
+      {/* Server-side Pagination Controls */}
+      <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
+        <div>
+          Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((propMachines || []).length / 10))}</strong>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1 || isLoadingPage || (propMachines || []).length <= 10}
+            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={!hasMore || isLoadingPage || (propMachines || []).length <= 10}
+            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
       {/* Unified Add / Edit Machine Asset Modal */}
       <AssetFormModal
         isOpen={isModalOpen}
@@ -722,7 +801,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
         }}
         initialMachine={editingMachine}
         mode={modalMode}
-        existingMachineIds={machines.map((m) => m.machine_id)}
+        existingMachineIds={pagedMachines.map((m) => m.machine_id)}
       />
     </div>
   );

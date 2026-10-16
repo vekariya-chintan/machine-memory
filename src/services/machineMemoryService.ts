@@ -8,6 +8,8 @@ import {
   query,
   orderBy,
   limit,
+  startAfter,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
@@ -624,5 +626,170 @@ export async function fetchTechnicians(): Promise<Technician[]> {
 export async function addEvidenceToFirestore(item: EvidenceItem): Promise<EvidenceItem> {
   await setDoc(doc(db, 'evidence', item.evidence_id), cleanFirestoreData(item));
   return item;
+}
+
+/**
+ * Server-side paginated fetch for Incident Investigations (10 per page, latest at top)
+ */
+export async function fetchIncidentsPage(pageSize = 10, lastDoc?: DocumentSnapshot | null): Promise<{
+  incidents: Incident[];
+  lastVisible: DocumentSnapshot | null;
+  hasMore: boolean;
+}> {
+  try {
+    const constraints: any[] = [orderBy('date', 'desc'), limit(pageSize + 1)];
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+    const q = query(collection(db, 'incidents'), ...constraints);
+    const snap = await getDocs(q);
+    const docs = snap.docs;
+    const hasMore = docs.length > pageSize;
+    const pageDocs = hasMore ? docs.slice(0, pageSize) : docs;
+    const lastVisible = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null;
+
+    const incidents = pageDocs
+      .map((d) => {
+        const data = d.data();
+        if (!data) return null;
+        const incidentId = String(data.incident_id || d.id || '').trim();
+        if (!incidentId) return null;
+
+        return {
+          incident_id: incidentId,
+          date: data.date || new Date().toISOString().split('T')[0],
+          machine_id: String(data.machine_id || 'M001'),
+          symptom: data.symptom || 'Vibration onset after warmup',
+          cause: data.cause || 'Mechanical misalignment',
+          repair: data.repair || 'Targeted component realign / replacement',
+          downtime: Number(data.downtime || 0),
+          status: data.status || 'resolved',
+          notes: data.notes || '',
+          verified_by: data.verified_by || undefined,
+          outcome: data.outcome || undefined,
+          verification_media: data.verification_media || undefined,
+        } as Incident;
+      })
+      .filter((i): i is Incident => Boolean(i && i.incident_id));
+
+    return { incidents, lastVisible, hasMore };
+  } catch (err) {
+    console.warn('fetchIncidentsPage failed:', err);
+    throw err;
+  }
+}
+
+/**
+ * Server-side paginated fetch for Machine Assets / Assessments Management (10 per page, latest at top)
+ */
+export async function fetchMachinesPage(pageSize = 10, lastDoc?: DocumentSnapshot | null): Promise<{
+  machines: Machine[];
+  lastVisible: DocumentSnapshot | null;
+  hasMore: boolean;
+}> {
+  try {
+    const constraints: any[] = [orderBy('installed_date', 'desc'), limit(pageSize + 1)];
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+    const q = query(collection(db, 'machines'), ...constraints);
+    const snap = await getDocs(q);
+    const docs = snap.docs;
+    const hasMore = docs.length > pageSize;
+    const pageDocs = hasMore ? docs.slice(0, pageSize) : docs;
+    const lastVisible = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null;
+
+    const machines = pageDocs
+      .map((d) => {
+        const data = d.data();
+        if (!data) return null;
+        const machineId = String(data.machine_id || d.id || '').trim();
+        if (!machineId) return null;
+
+        return {
+          machine_id: machineId,
+          name: data.name || `Machine Asset ${machineId}`,
+          model: data.model || 'Standard Industrial Unit',
+          subsystem_type: data.subsystem_type || 'custom',
+          location: data.location || 'Plant Floor',
+          manufacturer: data.manufacturer || 'Industrial Automation OEM',
+          status: data.status === 'warning' || data.status === 'critical' || data.status === 'maintenance' ? data.status : 'nominal',
+          baseline_metrics: {
+            normal_temp_c: Number(data.baseline_metrics?.normal_temp_c ?? 45.0),
+            max_temp_c: Number(data.baseline_metrics?.max_temp_c ?? 65.0),
+            normal_vibration_mms: Number(data.baseline_metrics?.normal_vibration_mms ?? 1.2),
+            iso_vibration_limit: Number(data.baseline_metrics?.iso_vibration_limit ?? 2.2),
+            rated_rpm: Number(data.baseline_metrics?.rated_rpm ?? 3000),
+            power_baseline_kw: Number(data.baseline_metrics?.power_baseline_kw ?? 15.0),
+            iso_standard: data.baseline_metrics?.iso_standard || 'ISO 10816-3:2009',
+            iso_group: data.baseline_metrics?.iso_group || 'Group 2',
+            foundation_type: data.baseline_metrics?.foundation_type || 'rigid',
+            vibration_zone_a: Number(data.baseline_metrics?.vibration_zone_a ?? 1.1),
+            vibration_zone_b: Number(data.baseline_metrics?.vibration_zone_b ?? 1.8),
+            vibration_zone_c_alert: Number(data.baseline_metrics?.vibration_zone_c_alert ?? 2.8),
+            vibration_zone_d_danger: Number(data.baseline_metrics?.vibration_zone_d_danger ?? 4.5),
+          },
+          installed_date: data.installed_date || new Date().toISOString().split('T')[0],
+          asset_criticality: data.asset_criticality || 'IMPORTANT_B',
+          description: data.description || '',
+        } as Machine;
+      })
+      .filter((m): m is Machine => Boolean(m && m.machine_id));
+
+    return { machines, lastVisible, hasMore };
+  } catch (err) {
+    console.warn('fetchMachinesPage failed:', err);
+    throw err;
+  }
+}
+
+/**
+ * Server-side paginated fetch for Institutional Memory / Knowledge Items (10 per page, latest at top)
+ */
+export async function fetchKnowledgePage(pageSize = 10, lastDoc?: DocumentSnapshot | null): Promise<{
+  knowledge: KnowledgeItem[];
+  lastVisible: DocumentSnapshot | null;
+  hasMore: boolean;
+}> {
+  try {
+    const constraints: any[] = [orderBy('created_at', 'desc'), limit(pageSize + 1)];
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+    const q = query(collection(db, 'knowledge'), ...constraints);
+    const snap = await getDocs(q);
+    const docs = snap.docs;
+    const hasMore = docs.length > pageSize;
+    const pageDocs = hasMore ? docs.slice(0, pageSize) : docs;
+    const lastVisible = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null;
+
+    const knowledge = pageDocs
+      .map((d) => {
+        const data = d.data();
+        if (!data) return null;
+        const knowledgeId = String(data.knowledge_id || d.id || '').trim();
+        if (!knowledgeId) return null;
+
+        return {
+          knowledge_id: knowledgeId,
+          machine_id: String(data.machine_id || 'M001'),
+          type: data.type || 'technician_tip',
+          title: data.title || 'Operational Heuristic',
+          content: data.content || '',
+          source: data.source || 'Technician Field Knowledge',
+          created_by: data.created_by || 'Plant Technician',
+          confidence: Number(data.confidence ?? 0.9),
+          created_at: data.created_at || new Date().toISOString(),
+          tags: Array.isArray(data.tags) ? data.tags : [],
+          media: data.media || undefined,
+        } as KnowledgeItem;
+      })
+      .filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
+
+    return { knowledge, lastVisible, hasMore };
+  } catch (err) {
+    console.warn('fetchKnowledgePage failed:', err);
+    throw err;
+  }
 }
 

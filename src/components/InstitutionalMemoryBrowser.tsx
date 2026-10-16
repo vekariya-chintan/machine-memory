@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   Search,
@@ -18,12 +18,14 @@ import {
   Eye,
   X,
   Plus,
+  Clock,
 } from 'lucide-react';
 import { Machine, Incident, KnowledgeItem, VerificationMedia, Technician } from '../types/industrial';
 import { SearchableDropdown } from './SearchableDropdown';
 import { AddKnowledgeModal } from './AddKnowledgeModal';
-import { addKnowledgeToFirestore } from '../services/machineMemoryService';
+import { addKnowledgeToFirestore, fetchKnowledgePage, fetchIncidentsPage, fetchMachinesPage } from '../services/machineMemoryService';
 import { validateQueryInput } from '../lib/securityValidation';
+import { DocumentSnapshot } from 'firebase/firestore';
 
 interface InstitutionalMemoryBrowserProps {
   machines: Machine[];
@@ -38,7 +40,7 @@ interface InstitutionalMemoryBrowserProps {
 export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProps> = ({
   machines,
   incidents,
-  knowledge,
+  knowledge: propKnowledge,
   onBackToWalkthrough,
   activeMachineId = 'M001',
   onKnowledgeUpdated,
@@ -53,20 +55,140 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   const [selectedMediaIncident, setSelectedMediaIncident] = useState<Incident | null>(null);
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
   const [isAddKnowledgeModalOpen, setIsAddKnowledgeModalOpen] = useState(false);
-  const [localKnowledge, setLocalKnowledge] = useState<KnowledgeItem[]>(knowledge || []);
+  const [localKnowledge, setLocalKnowledge] = useState<KnowledgeItem[]>(propKnowledge || []);
+
+  // Server-side pagination state for Knowledge tab (10 records per page, latest at top)
+  const [page, setPage] = useState<number>(1);
+  const [pagedKnowledge, setPagedKnowledge] = useState<KnowledgeItem[]>([]);
+  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
+
+  // Server-side pagination state for Incidents tab (10 records per page, latest at top)
+  const [incidentPage, setIncidentPage] = useState<number>(1);
+  const [pagedTabIncidents, setPagedTabIncidents] = useState<Incident[]>([]);
+  const [incidentPageCursors, setIncidentPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [incidentHasMore, setIncidentHasMore] = useState<boolean>(false);
+  const [isIncidentLoadingPage, setIsIncidentLoadingPage] = useState<boolean>(false);
+
+  // Server-side pagination state for Machines tab (12 records per page, latest at top)
+  const [machinePage, setMachinePage] = useState<number>(1);
+  const [pagedMachinesTab, setPagedMachinesTab] = useState<Machine[]>([]);
+  const [machinePageCursors, setMachinePageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [machineHasMore, setMachineHasMore] = useState<boolean>(false);
+  const [isMachineLoadingPage, setIsMachineLoadingPage] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingPage(true);
+    const cursor = pageCursors[page - 1] || null;
+    fetchKnowledgePage(10, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedKnowledge(res.knowledge);
+          setHasMore(res.hasMore);
+          if (res.lastVisible && pageCursors.length <= page) {
+            setPageCursors((prev) => {
+              const next = [...prev];
+              next[page] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsLoadingPage(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingPage(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [page]);
+
+  useEffect(() => {
+    if (activeTab !== 'incidents') return;
+    let isMounted = true;
+    setIsIncidentLoadingPage(true);
+    const cursor = incidentPageCursors[incidentPage - 1] || null;
+    fetchIncidentsPage(10, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedTabIncidents(res.incidents);
+          setIncidentHasMore(res.hasMore);
+          if (res.lastVisible && incidentPageCursors.length <= incidentPage) {
+            setIncidentPageCursors((prev) => {
+              const next = [...prev];
+              next[incidentPage] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsIncidentLoadingPage(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsIncidentLoadingPage(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, incidentPage]);
+
+  useEffect(() => {
+    if (activeTab !== 'machines') return;
+    let isMounted = true;
+    setIsMachineLoadingPage(true);
+    const cursor = machinePageCursors[machinePage - 1] || null;
+    fetchMachinesPage(12, cursor)
+      .then((res) => {
+        if (isMounted) {
+          setPagedMachinesTab(res.machines);
+          setMachineHasMore(res.hasMore);
+          if (res.lastVisible && machinePageCursors.length <= machinePage) {
+            setMachinePageCursors((prev) => {
+              const next = [...prev];
+              next[machinePage] = res.lastVisible;
+              return next;
+            });
+          }
+          setIsMachineLoadingPage(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsMachineLoadingPage(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, machinePage]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setPage(newPage);
+  };
+
+  const handleIncidentPageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setIncidentPage(newPage);
+  };
+
+  const handleMachinePageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setMachinePage(newPage);
+  };
 
   // Synchronize localKnowledge with parent prop if it changes
   React.useEffect(() => {
-    if (knowledge) {
-      setLocalKnowledge(knowledge);
+    if (propKnowledge) {
+      setLocalKnowledge(propKnowledge);
     }
-  }, [knowledge]);
+  }, [propKnowledge]);
 
   const handleSaveNewKnowledge = async (newItem: Omit<KnowledgeItem, 'knowledge_id' | 'created_at'>) => {
     try {
       const saved = await addKnowledgeToFirestore(newItem);
       const updated = [saved, ...localKnowledge];
       setLocalKnowledge(updated);
+      setPagedKnowledge((prev) => [saved, ...prev]);
       if (onKnowledgeUpdated) {
         onKnowledgeUpdated(updated);
       }
@@ -113,11 +235,11 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
     }
   };
 
-  const safeKnowledge = (localKnowledge || []).filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
+  const safePagedKnowledge = (pagedKnowledge || []).filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
   const safeIncidents = (incidents || []).filter((i): i is Incident => Boolean(i && i.incident_id));
   const safeMachines = (machines || []).filter((m): m is Machine => Boolean(m && m.machine_id));
 
-  const filteredKnowledge = safeKnowledge.filter((k) => {
+  const filteredKnowledge = safePagedKnowledge.filter((k) => {
     const mId = k.machine_id || '';
     if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
     if (!search) return true;
@@ -129,7 +251,8 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
     );
   });
 
-  const filteredIncidents = safeIncidents.filter((i) => {
+  const safePagedTabIncidents = (pagedTabIncidents || []).filter((i): i is Incident => Boolean(i && i.incident_id));
+  const filteredIncidents = safePagedTabIncidents.filter((i) => {
     const mId = i.machine_id || '';
     if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
     if (!search) return true;
@@ -139,6 +262,19 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
       (i.cause || '').toLowerCase().includes(q) ||
       (i.symptom || '').toLowerCase().includes(q) ||
       mId.toLowerCase().includes(q)
+    );
+  });
+
+  const safePagedMachinesTab = (pagedMachinesTab || []).filter((m): m is Machine => Boolean(m && m.machine_id));
+  const filteredMachinesTab = safePagedMachinesTab.filter((m) => {
+    const mId = m.machine_id || '';
+    if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      mId.toLowerCase().includes(q) ||
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.location || '').toLowerCase().includes(q)
     );
   });
 
@@ -264,6 +400,18 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
             </button>
           </div>
 
+          {/* Active filter count status */}
+          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 pb-1 border-t border-slate-800/80 px-1">
+            <span>
+              Showing <strong className="text-slate-200">{filteredKnowledge.length}</strong> of{' '}
+              <strong className="text-slate-200">{(propKnowledge || []).length}</strong> records
+            </span>
+            <span className="flex items-center gap-1 text-slate-500">
+              <Clock className="w-3 h-3 text-cyan-400" />
+              Sorted by creation date (newest first)
+            </span>
+          </div>
+
           {filteredKnowledge.length === 0 ? (
             <div className="bg-slate-950 border border-slate-800 rounded-lg p-8 text-center space-y-3">
               <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
@@ -280,163 +428,250 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               </button>
             </div>
           ) : (
-            filteredKnowledge.map((k) => (
-            <div
-              key={k.knowledge_id}
-              className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 hover:border-slate-700 transition-colors"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-cyan-300 font-mono">{k.title}</span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                    {k.knowledge_id}
-                  </span>
-                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
-                    {k.type.toUpperCase()}
-                  </span>
-                </div>
-                <div className="text-xs font-mono text-slate-400">
-                  Target Asset: <span className="text-slate-200 font-bold">{k.machine_id}</span>
-                </div>
-              </div>
+            <>
+              {filteredKnowledge.map((k) => (
+                <div
+                  key={k.knowledge_id}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 hover:border-slate-700 transition-colors"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-cyan-300 font-mono">{k.title}</span>
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                        {k.knowledge_id}
+                      </span>
+                      <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
+                        {k.type.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-slate-400">
+                      Target Asset: <span className="text-slate-200 font-bold">{k.machine_id}</span>
+                    </div>
+                  </div>
 
-              <p className="text-xs font-mono text-slate-300 leading-relaxed bg-slate-900/40 p-3 rounded border border-slate-800">
-                {k.content}
-              </p>
+                  <p className="text-xs font-mono text-slate-300 leading-relaxed bg-slate-900/40 p-3 rounded border border-slate-800">
+                    {k.content}
+                  </p>
 
-              {/* Verified Proof Attachments for Knowledge */}
-              {k.media && (
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-900 text-xs font-mono">
-                  <span className="text-slate-500 text-[11px] font-bold">VERIFIED PROOF:</span>
-                  {k.media.photos && k.media.photos.length > 0 && (
-                    <button
-                      onClick={() => setActivePhotoUrl(k.media?.photos?.[0]?.url || null)}
-                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
-                    >
-                      <Camera className="w-3 h-3 text-cyan-400" />
-                      <span>{k.media.photos.length} Verified Photos</span>
-                    </button>
-                  )}
-                  {k.media.video_url && (
-                    <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px] cursor-pointer">
-                      <Video className="w-3 h-3 text-purple-400" />
-                      <span>Runout Video Clip</span>
-                    </span>
-                  )}
-                  {k.media.audio_url && (
-                    <div className="flex items-center gap-2 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer">
-                      <Mic className="w-3 h-3 text-emerald-400" />
-                      <audio src={k.media.audio_url} controls className="h-6 w-32" />
+                  {/* Verified Proof Attachments for Knowledge */}
+                  {k.media && (
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-900 text-xs font-mono">
+                      <span className="text-slate-500 text-[11px] font-bold">VERIFIED PROOF:</span>
+                      {k.media.photos && k.media.photos.length > 0 && (
+                        <button
+                          onClick={() => setActivePhotoUrl(k.media?.photos?.[0]?.url || null)}
+                          className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                        >
+                          <Camera className="w-3 h-3 text-cyan-400" />
+                          <span>{k.media.photos.length} Verified Photos</span>
+                        </button>
+                      )}
+                      {k.media.video_url && (
+                        <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px] cursor-pointer">
+                          <Video className="w-3 h-3 text-purple-400" />
+                          <span>Runout Video Clip</span>
+                        </span>
+                      )}
+                      {k.media.audio_url && (
+                        <div className="flex items-center gap-2 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer">
+                          <Mic className="w-3 h-3 text-emerald-400" />
+                          <audio src={k.media.audio_url} controls className="h-6 w-32" />
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              <div className="flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 pt-1">
-                <span>Source: <b className="text-slate-300">{k.source}</b></span>
-                <span>Created by: <b className="text-slate-300">{k.created_by}</b></span>
-                <span>Confidence: <b className="text-emerald-400">{Math.round(k.confidence * 100)}%</b></span>
-              </div>
+                  <div className="flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 pt-1">
+                    <span>Source: <b className="text-slate-300">{k.source}</b></span>
+                    <span>Created by: <b className="text-slate-300">{k.created_by}</b></span>
+                    <span>Confidence: <b className="text-emerald-400">{Math.round(k.confidence * 100)}%</b></span>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Server-side Pagination Controls */}
+          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 mt-4">
+            <div>
+              Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((propKnowledge || []).length / 10))}</strong>
             </div>
-          ))
-        )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page === 1 || isLoadingPage || (propKnowledge || []).length <= 10}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => handlePageChange(page + 1)}
+                disabled={!hasMore || isLoadingPage || (propKnowledge || []).length <= 10}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Tab 2: Incidents & Repairs */}
       {activeTab === 'incidents' && (
-        <div className="bg-slate-950 border border-slate-800 rounded-lg overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
-              <tr>
-                <th className="py-2.5 px-3">INCIDENT ID</th>
-                <th className="py-2.5 px-3">DATE</th>
-                <th className="py-2.5 px-3">ASSET</th>
-                <th className="py-2.5 px-3">SYMPTOM</th>
-                <th className="py-2.5 px-3">CONFIRMED CAUSE</th>
-                <th className="py-2.5 px-3">REPAIR ACTION</th>
-                <th className="py-2.5 px-3">DOWNTIME</th>
-                <th className="py-2.5 px-3">PROOF MEDIA</th>
-                <th className="py-2.5 px-3">STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/80 text-slate-300">
-              {filteredIncidents.map((inc) => (
-                <tr key={inc.incident_id} className="hover:bg-slate-900/50">
-                  <td className="py-3 px-3 font-bold text-cyan-400">{inc.incident_id}</td>
-                  <td className="py-3 px-3 text-slate-400">{inc.date}</td>
-                  <td className="py-3 px-3 font-semibold text-slate-200">{inc.machine_id}</td>
-                  <td className="py-3 px-3 text-amber-400">{inc.symptom}</td>
-                  <td className="py-3 px-3 text-slate-200">{inc.cause}</td>
-                  <td className="py-3 px-3 text-cyan-300">{inc.repair}</td>
-                  <td className="py-3 px-3 font-bold text-emerald-400 tabular-nums">{inc.downtime}m</td>
-                  <td className="py-3 px-3">
-                    {inc.verification_media ? (
-                      <button
-                        onClick={() => setSelectedMediaIncident(inc)}
-                        className="px-2 py-1 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 hover:bg-cyan-900 text-[10px] flex items-center gap-1 font-bold transition-colors"
-                        title="Click to view verified inspection photos, video, and audio"
-                      >
-                        <Camera className="w-3 h-3 text-cyan-400" />
-                        <span>VIEW PROOF</span>
-                      </button>
-                    ) : (
-                      <span className="text-slate-600 text-[10px]">Logged</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-bold uppercase">
-                      {inc.status}
-                    </span>
-                  </td>
+        <div className="space-y-4">
+          <div className="bg-slate-950 border border-slate-800 rounded-lg overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono whitespace-nowrap">
+              <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">INCIDENT ID</th>
+                  <th className="py-2.5 px-3">DATE</th>
+                  <th className="py-2.5 px-3">ASSET</th>
+                  <th className="py-2.5 px-3">SYMPTOM</th>
+                  <th className="py-2.5 px-3">CONFIRMED CAUSE</th>
+                  <th className="py-2.5 px-3">REPAIR ACTION</th>
+                  <th className="py-2.5 px-3">DOWNTIME</th>
+                  <th className="py-2.5 px-3">PROOF MEDIA</th>
+                  <th className="py-2.5 px-3">STATUS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80 text-slate-300">
+                {filteredIncidents.map((inc) => (
+                  <tr key={inc.incident_id} className="hover:bg-slate-900/50">
+                    <td className="py-3 px-3 font-bold text-cyan-400 whitespace-nowrap">{inc.incident_id}</td>
+                    <td className="py-3 px-3 text-slate-400 whitespace-nowrap">{inc.date}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-200 whitespace-nowrap">{inc.machine_id}</td>
+                    <td className="py-3 px-3 text-amber-400 whitespace-nowrap truncate max-w-[180px]" title={inc.symptom}>{inc.symptom}</td>
+                    <td className="py-3 px-3 text-slate-200 whitespace-nowrap truncate max-w-[180px]" title={inc.cause}>{inc.cause}</td>
+                    <td className="py-3 px-3 text-cyan-300 whitespace-nowrap truncate max-w-[180px]" title={inc.repair}>{inc.repair}</td>
+                    <td className="py-3 px-3 font-bold text-emerald-400 tabular-nums whitespace-nowrap">{inc.downtime}m</td>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      {inc.verification_media ? (
+                        <button
+                          onClick={() => setSelectedMediaIncident(inc)}
+                          className="px-2 py-1 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 hover:bg-cyan-900 text-[10px] flex items-center gap-1 font-bold transition-colors"
+                          title="Click to view verified inspection photos, video, and audio"
+                        >
+                          <Camera className="w-3 h-3 text-cyan-400" />
+                          <span>VIEW PROOF</span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-600 text-[10px]">Logged</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-bold uppercase">
+                        {inc.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Server-side Pagination Controls */}
+          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
+            <div>
+              Page <strong className="text-cyan-400">{incidentPage}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((incidents || []).length / 10))}</strong>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleIncidentPageChange(incidentPage - 1)}
+                disabled={incidentPage === 1 || isIncidentLoadingPage || (incidents || []).length <= 10}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => handleIncidentPageChange(incidentPage + 1)}
+                disabled={!incidentHasMore || isIncidentLoadingPage || (incidents || []).length <= 10}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Tab 3: Plant Machines */}
       {activeTab === 'machines' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {machines.map((m) => (
-            <div key={m.machine_id} className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-3 font-mono">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <span className="text-lg font-bold text-cyan-400">{m.machine_id}</span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold ${
-                    m.status === 'nominal'
-                      ? 'bg-emerald-950 border-emerald-800 text-emerald-400'
-                      : 'bg-amber-950 border-amber-800 text-amber-400'
-                  }`}
-                >
-                  {m.status}
-                </span>
-              </div>
+        <div className="space-y-4">
+          {/* Active filter count status */}
+          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 pb-1 border-t border-slate-800/80 px-1">
+            <span>
+              Showing <strong className="text-slate-200">{filteredMachinesTab.length}</strong> of{' '}
+              <strong className="text-slate-200">{(machines || []).length}</strong> assets
+            </span>
+            <span className="flex items-center gap-1 text-slate-500">
+              <Clock className="w-3 h-3 text-cyan-400" />
+              Sorted by creation date (newest first)
+            </span>
+          </div>
 
-              <div>
-                <div className="text-sm font-bold text-slate-200">{m.name}</div>
-                <div className="text-xs text-slate-400">{m.model}</div>
-                <div className="text-[11px] text-slate-500 mt-1">{m.location}</div>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {filteredMachinesTab.map((m) => (
+              <div key={m.machine_id} className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-3 font-mono">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span className="text-lg font-bold text-cyan-400">{m.machine_id}</span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold ${
+                      m.status === 'nominal'
+                        ? 'bg-emerald-950 border-emerald-800 text-emerald-400'
+                        : 'bg-amber-950 border-amber-800 text-amber-400'
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                </div>
 
-              <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800 text-xs space-y-1">
-                <div className="text-slate-400 font-bold text-[10px]">BASELINE TELEMETRY LIMITS</div>
-                <div className="flex justify-between">
-                  <span>ISO Vibration Limit:</span>
-                  <span className="text-amber-400">{m.baseline_metrics?.iso_vibration_limit ?? 2.2} mm/s</span>
+                <div>
+                  <div className="text-sm font-bold text-slate-200">{m.name}</div>
+                  <div className="text-xs text-slate-400">{m.model}</div>
+                  <div className="text-[11px] text-slate-500 mt-1">{m.location}</div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Rated Spindle Speed:</span>
-                  <span className="text-slate-200">{m.baseline_metrics?.rated_rpm ?? 3000} RPM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Normal Operating Temp:</span>
-                  <span className="text-cyan-400">{m.baseline_metrics?.normal_temp_c ?? 65}°C</span>
+
+                <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800 text-xs space-y-1">
+                  <div className="text-slate-400 font-bold text-[10px]">BASELINE TELEMETRY LIMITS</div>
+                  <div className="flex justify-between">
+                    <span>ISO Vibration Limit:</span>
+                    <span className="text-amber-400">{m.baseline_metrics?.iso_vibration_limit ?? 2.2} mm/s</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Rated Spindle Speed:</span>
+                    <span className="text-slate-200">{m.baseline_metrics?.rated_rpm ?? 3000} RPM</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Normal Operating Temp:</span>
+                    <span className="text-cyan-400">{m.baseline_metrics?.normal_temp_c ?? 65}°C</span>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* Server-side Pagination Controls */}
+          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
+            <div>
+              Page <strong className="text-cyan-400">{machinePage}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((machines || []).length / 12))}</strong>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleMachinePageChange(machinePage - 1)}
+                disabled={machinePage === 1 || isMachineLoadingPage || (machines || []).length <= 12}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => handleMachinePageChange(machinePage + 1)}
+                disabled={!machineHasMore || isMachineLoadingPage || (machines || []).length <= 12}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

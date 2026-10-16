@@ -86,6 +86,15 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     });
   }, [technicians, searchQuery, selectedShift, selectedRole]);
 
+  const [techPage, setTechPage] = useState(1);
+
+  useEffect(() => {
+    setTechPage(1);
+  }, [searchQuery, selectedShift, selectedRole]);
+
+  const totalTechPages = Math.max(1, Math.ceil(filteredTechnicians.length / 12));
+  const paginatedTechnicians = filteredTechnicians.slice((techPage - 1) * 12, techPage * 12);
+
   // Unique shifts for filter
   const availableShifts = useMemo(() => {
     const set = new Set(technicians.map((t) => t.shift).filter(Boolean));
@@ -330,6 +339,14 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
         </div>
       </div>
 
+      {/* Active filter count status */}
+      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 pb-1 border-t border-slate-800/80 px-1">
+        <span>
+          Showing <strong className="text-slate-200">{paginatedTechnicians.length}</strong> of{' '}
+          <strong className="text-slate-200">{filteredTechnicians.length}</strong> records
+        </span>
+      </div>
+
       {/* Listing */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 rounded-xl bg-slate-900/30 border border-slate-800 space-y-3">
@@ -361,109 +378,136 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-          {filteredTechnicians.map((tech) => {
-            const initials = tech.name
-              .split(' ')
-              .map((p) => p[0])
-              .filter(Boolean)
-              .slice(0, 2)
-              .join('')
-              .toUpperCase();
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {paginatedTechnicians.map((tech) => {
+              const initials = tech.name
+                .split(' ')
+                .map((p) => p[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
 
-            return (
-              <div
-                key={tech.technician_id}
-                className="flex flex-col justify-between p-5 rounded-xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition-all shadow-sm group"
-              >
-                <div className="space-y-4">
-                  {/* Top card row: Name, Avatar, ID, Action Buttons */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-900/80 to-slate-800 border border-cyan-800/60 flex items-center justify-center text-cyan-300 font-mono font-bold text-sm shadow-inner shrink-0">
-                        {initials || 'TC'}
+              return (
+                <div
+                  key={tech.technician_id}
+                  className="flex flex-col justify-between p-5 rounded-xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition-all shadow-sm group"
+                >
+                  <div className="space-y-4">
+                    {/* Top card row: Name, Avatar, ID, Action Buttons */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-900/80 to-slate-800 border border-cyan-800/60 flex items-center justify-center text-cyan-300 font-mono font-bold text-sm shadow-inner shrink-0">
+                          {initials || 'TC'}
+                        </div>
+                        <div>
+                          <h2 className="text-base font-bold text-slate-100 leading-snug">
+                            {tech.name}
+                          </h2>
+                          <span className="text-xs font-medium text-cyan-400">
+                            {tech.role}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-base font-bold text-slate-100 leading-snug">
-                          {tech.name}
-                        </h2>
-                        <span className="text-xs font-medium text-cyan-400">
-                          {tech.role}
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">
+                          {tech.technician_id}
+                        </span>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => {
+                            setEditingTechnician(tech);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-300 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
+                          title={`Edit ${tech.name}`}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => setDeletingTechnician(tech)}
+                          className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-950 hover:text-rose-400 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
+                          title={`Delete ${tech.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Details grid: Email, Shift, Experience */}
+                    <div className="space-y-2 text-xs text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="font-mono text-slate-300 truncate">{tech.email}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="text-slate-400">{tech.shift}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Award className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="text-slate-400">
+                          Experience: <strong className="text-slate-200">{tech.experience} years</strong>
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">
-                        {tech.technician_id}
-                      </span>
-
-                      {/* Edit Button */}
-                      <button
-                        onClick={() => {
-                          setEditingTechnician(tech);
-                          setIsEditModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-300 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
-                        title={`Edit ${tech.name}`}
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        onClick={() => setDeletingTechnician(tech)}
-                        className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-950 hover:text-rose-400 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
-                        title={`Delete ${tech.name}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Details grid: Email, Shift, Experience */}
-                  <div className="space-y-2 text-xs text-slate-300">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="font-mono text-slate-300 truncate">{tech.email}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="text-slate-400">{tech.shift}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Award className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="text-slate-400">
-                        Experience: <strong className="text-slate-200">{tech.experience} years</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Skills badges */}
-                  {tech.skills && tech.skills.length > 0 && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 mb-2">
-                        <Layers className="w-3 h-3 text-cyan-500" />
-                        <span>Core Competencies:</span>
+                    {/* Skills badges */}
+                    {tech.skills && tech.skills.length > 0 && (
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 mb-2">
+                          <Layers className="w-3 h-3 text-cyan-500" />
+                          <span>Core Competencies:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {tech.skills.map((skill, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 text-slate-300 border border-slate-800"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tech.skills.map((skill, idx) => (
-                          <span
-                            key={idx}
-                            className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 text-slate-300 border border-slate-800"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination Controls */}
+          {filteredTechnicians.length > 0 && (
+            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
+              <div>
+                Page <strong className="text-cyan-400">{techPage}</strong> of <strong className="text-slate-400">{totalTechPages}</strong>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTechPage((p) => Math.max(1, p - 1))}
+                  disabled={techPage === 1 || filteredTechnicians.length <= 12}
+                  className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setTechPage((p) => Math.min(totalTechPages, p + 1))}
+                  disabled={techPage >= totalTechPages || filteredTechnicians.length <= 12}
+                  className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
