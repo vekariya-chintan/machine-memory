@@ -260,7 +260,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
         {/* Add Registration Button */}
         <button
           onClick={() => setIsRegisterModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-950/50 transition-all cursor-pointer shrink-0"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] shrink-0 self-start sm:self-center cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
           <span>Register Technician</span>

@@ -563,17 +563,6 @@ function loadTechniciansFromDisk(): StoredTechnician[] {
   }
 }
 
-function saveTechniciansToDisk(techs: StoredTechnician[]): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(TECHNICIANS_FILE, JSON.stringify(techs, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Failed to save technicians to disk:', err);
-  }
-}
-
 let TECHNICIANS_REGISTRY: StoredTechnician[] = loadTechniciansFromDisk();
 
 function createSessionToken(tech: ServerTechnician): string {
@@ -693,7 +682,6 @@ app.post('/api/technicians', (req: Request, res: Response) => {
     };
 
     TECHNICIANS_REGISTRY.push(newTech);
-    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
 
     const { password_hash, ...safeTech } = newTech;
     return res.status(201).json({ success: true, technician: safeTech });
@@ -773,7 +761,6 @@ app.put('/api/technicians/:id', (req: Request, res: Response) => {
     };
 
     TECHNICIANS_REGISTRY[existingIndex] = updatedTech;
-    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
 
     const { password_hash, ...safeTech } = updatedTech;
     return res.json({ success: true, technician: safeTech });
@@ -798,7 +785,6 @@ app.delete('/api/technicians/:id', (req: Request, res: Response) => {
     }
 
     TECHNICIANS_REGISTRY.splice(existingIndex, 1);
-    saveTechniciansToDisk(TECHNICIANS_REGISTRY);
 
     return res.json({ success: true, deletedTechnicianId: techId });
   } catch (err: any) {

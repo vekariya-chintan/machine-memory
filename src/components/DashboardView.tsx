@@ -22,6 +22,7 @@ import {
   Gauge,
   Thermometer,
   ChevronLeft,
+  ArrowLeft,
 } from 'lucide-react';
 import { Machine, Incident, KnowledgeItem } from '../types/industrial';
 import { PipelineStep } from './Header';
@@ -326,7 +327,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 border border-slate-700 text-xs font-mono font-bold transition-all shadow-sm group cursor-pointer"
                   title="Return to general overview of all assets"
                 >
-                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   <span>BACK TO ALL ASSETS (FLEET OVERVIEW)</span>
                 </button>
 

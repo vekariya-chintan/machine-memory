@@ -471,10 +471,10 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-300 font-bold flex items-center gap-1.5">
-                    <Video className="w-4 h-4 text-purple-400" />
+                    <Video className="w-4 h-4 text-cyan-400" />
                     VIDEO UPLOAD
                   </span>
-                  {videoUrl && <span className="text-purple-400 font-bold text-[11px]">VIDEO ATTACHED</span>}
+                  {videoUrl && <span className="text-cyan-400 font-bold text-[11px]">VIDEO ATTACHED</span>}
                 </div>
 
                 <p className="text-[11px] text-slate-400 font-mono">
@@ -482,7 +482,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                 </p>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="px-3 py-1.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer">
+                  <label className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
                     <span>UPLOAD VIDEO</span>
                     <input

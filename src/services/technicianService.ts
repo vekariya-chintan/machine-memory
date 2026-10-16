@@ -215,31 +215,6 @@ export function validateTechnicianForm(
  * Guarantees resilient loading without failing or throwing uncaught connection errors.
  */
 export async function fetchTechniciansFromDatabase(): Promise<Technician[]> {
-  try {
-    // 1. Try persistent backend endpoint first
-    const res = await fetch('/api/technicians');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && Array.isArray(data.technicians) && data.technicians.length > 0) {
-        const list: Technician[] = data.technicians.map((t: any) => ({
-          technician_id: String(t.technician_id),
-          name: String(t.name || 'Technician'),
-          email: String(t.email || ''),
-          role: String(t.role || 'Maintenance Specialist'),
-          skills: Array.isArray(t.skills) ? t.skills : [],
-          experience: Number(t.experience ?? 5),
-          shift: String(t.shift || 'Day Shift'),
-          avatar_url: t.avatar_url || '',
-          last_login: t.last_login || new Date().toISOString(),
-        }));
-        list.sort((a, b) => a.technician_id.localeCompare(b.technician_id));
-        return list;
-      }
-    }
-  } catch (backendErr) {
-    console.warn('Backend /api/technicians probe note:', backendErr);
-  }
-
   // 2. Direct Firestore fallback
   try {
     const techCol = collection(db, 'technicians');

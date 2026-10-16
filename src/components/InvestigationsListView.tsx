@@ -540,18 +540,6 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
             <div className="pt-2 flex justify-between items-center border-t border-slate-800">
               <button
-                onClick={() => {
-                  const targetInc = selectedProofIncident;
-                  setSelectedProofIncident(null);
-                  onOpenInvestigation(targetInc);
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-colors cursor-pointer"
-              >
-                <span>OPEN IN INVESTIGATOR</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-
-              <button
                 onClick={() => setSelectedProofIncident(null)}
                 className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
               >
