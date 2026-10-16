@@ -139,7 +139,7 @@ export const KnowledgeExtractionView: React.FC<KnowledgeExtractionViewProps> = (
       {/* Action Footer */}
       <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="text-xs font-mono text-slate-400">
-          Knowledge is committed to Central Fleet Database. Proceed to ingest the incident sensor telemetry.
+          Knowledge is recorded. Proceed to ingest the incident sensor telemetry.
         </div>
         <button
           onClick={onProceed}

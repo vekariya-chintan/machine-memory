@@ -71,7 +71,7 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Error adding knowledge:', err);
-      setError(err?.message || 'Failed to save knowledge to Central Database.');
+      setError(err?.message || 'Failed to save knowledge.');
     } finally {
       setIsSubmitting(false);
     }
@@ -154,7 +154,7 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
                 <option value="best_practice">Standard Maintenance Procedure</option>
               </select>
               <span className="text-[10px] text-cyan-400 mt-1 block">
-                Permanently indexed in Firestore memory retrieval
+                Permanently indexed in memory retrieval
               </span>
             </div>
           </div>
@@ -254,7 +254,7 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
           <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
               <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Direct Firestore write to <strong className="text-slate-200">/knowledge</strong></span>
+              <span>Recorded to institutional memory</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -272,7 +272,7 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
                 className="flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] disabled:opacity-50"
               >
                 {isSubmitting ? (
-                  <span>Saving to Database...</span>
+                  <span>Saving...</span>
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />

@@ -223,7 +223,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
       onLearningCommitted(incident);
     } catch (err: any) {
       console.error('Failed to commit verified memory:', err);
-      setCommitError(err?.message || 'Database write failed: No active connection with Firestore. Local storage is disabled.');
+      setCommitError(err?.message || 'Save failed: No active connection. Local storage is disabled.');
     } finally {
       setIsSubmitting(false);
     }
@@ -231,7 +231,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-5 sm:p-6 shadow-xl space-y-6">
-      {/* Error notification banner if database commit fails */}
+      {/* Error notification banner if commit fails */}
       {commitError && (
         <div className="p-3.5 px-4 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-200 text-xs font-mono flex items-center justify-between">
           <span>{commitError}</span>
@@ -250,19 +250,19 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-100">
             {isCommitted
-              ? `Institutional Memory Stored & Active in Central Database (${currentAssetId})`
+              ? `Institutional Memory Stored & Active (${currentAssetId})`
               : `Technician Verification & Proof Sign-Off (${currentAssetId})`}
           </h2>
           <p className="text-xs text-slate-400 font-sans mt-0.5">
             {isCommitted
-              ? 'Confirmed root cause, corrective actions, audio notes, photos, and video proof are permanently indexed in Firestore. The next similar incident benefits from this new memory.'
+              ? 'Confirmed root cause, corrective actions, audio notes, photos, and video proof are permanently indexed. The next similar incident benefits from this new memory.'
               : 'Technician confirms the actual root cause, attaching verification notes, audio record, or photos for future incident retrieval and user review.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 bg-slate-950 px-3 py-2 rounded-lg border border-slate-800 shrink-0">
           <Database className="w-4 h-4 text-emerald-400" />
-          <span>DESTINATION: <strong className="text-slate-200">FIRESTORE /incidents &amp; /knowledge</strong></span>
+          <span>STATUS: <strong className="text-slate-200">INSTITUTIONAL MEMORY</strong></span>
         </div>
       </div>
 
@@ -528,7 +528,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50"
             >
               <Database className="w-4 h-4 text-slate-950" />
-              <span>{isSubmitting ? 'COMMITTING TO FIRESTORE...' : 'COMMIT TO INSTITUTIONAL MEMORY'}</span>
+              <span>{isSubmitting ? 'SAVING MEMORY...' : 'COMMIT TO INSTITUTIONAL MEMORY'}</span>
             </button>
           </div>
         </div>
@@ -545,7 +545,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                   Closed-Loop Memory Cycle Stored for {currentAssetId}!
                 </h3>
                 <p className="text-xs font-mono text-slate-400">
-                  Asset status updated to <strong className="text-emerald-400">NOMINAL</strong> · Permanently indexed into Firestore: <span className="text-cyan-400 font-bold">/incidents</span> &amp; <span className="text-cyan-400 font-bold">/knowledge</span>
+                  Asset status updated to <strong className="text-emerald-400">NOMINAL</strong> · Permanently indexed into institutional memory
                 </p>
               </div>
             </div>

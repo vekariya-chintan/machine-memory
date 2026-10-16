@@ -35,8 +35,7 @@ async function bootstrap() {
           </h1>
           <p style={{ lineHeight: 1.5, opacity: 0.9 }}>{message}</p>
           <p style={{ marginTop: '1rem', fontSize: '0.875rem', opacity: 0.7 }}>
-            Confirm Cloud Run env vars are set and{' '}
-            <code>/api/config/firebase</code> returns a valid apiKey.
+            Confirm VITE_FIREBASE_* environment variables are set in import.meta.env.
           </p>
         </div>
       </div>

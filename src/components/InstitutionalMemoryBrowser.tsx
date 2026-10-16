@@ -72,7 +72,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
       }
     } catch (err: any) {
       console.error('Failed to commit knowledge to Firestore:', err);
-      throw new Error('Database connection unavailable: knowledge cannot be stored locally.');
+      throw new Error('Connection unavailable: knowledge cannot be saved.');
     }
   };
 
@@ -258,7 +258,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                 </span>
               </div>
               <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-                Institutional wisdom and OEM rules of thumb permanently stored in Firestore to prevent wasteful teardowns.
+                Institutional wisdom and OEM rules of thumb permanently recorded to prevent wasteful teardowns.
               </p>
             </div>
             <button

@@ -10,61 +10,23 @@ export let storage: FirebaseStorage;
 
 let initPromise: Promise<void> | null = null;
 
-type RuntimeFirebaseConfig = {
-  projectId?: string;
-  appId?: string;
-  apiKey?: string;
-  authDomain?: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-  measurementId?: string;
-  firestoreDatabaseId?: string;
-};
-
-function readViteFallbackConfig(): RuntimeFirebaseConfig {
-  const env = import.meta.env;
-  return {
-    projectId: env.VITE_FIREBASE_PROJECT_ID || '',
-    appId: env.VITE_FIREBASE_APP_ID || '',
-    apiKey: env.VITE_FIREBASE_API_KEY || '',
-    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || '',
-    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-    measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || '',
-    firestoreDatabaseId: env.VITE_FIREBASE_DATABASE_ID || '',
-  };
-}
-
-async function fetchRuntimeFirebaseConfig(): Promise<RuntimeFirebaseConfig> {
-  try {
-    const res = await fetch('/api/config/firebase');
-    if (!res.ok) {
-      throw new Error(`Firebase config endpoint returned ${res.status}`);
-    }
-    return (await res.json()) as RuntimeFirebaseConfig;
-  } catch (error) {
-    console.warn('Failed to load /api/config/firebase; falling back to Vite env.', error);
-    return readViteFallbackConfig();
-  }
-}
-
-function resolveFirebaseConfig(runtime: RuntimeFirebaseConfig): {
+function getFirebaseConfig(): {
   options: FirebaseOptions;
   firestoreDatabaseId: string;
 } {
-  const fallback = readViteFallbackConfig();
-  const apiKey = runtime.apiKey || fallback.apiKey || '';
-  const projectId = runtime.projectId || fallback.projectId || '';
-  const appId = runtime.appId || fallback.appId || '';
-  const authDomain = runtime.authDomain || fallback.authDomain || '';
-  const storageBucket = runtime.storageBucket || fallback.storageBucket || '';
-  const messagingSenderId = runtime.messagingSenderId || fallback.messagingSenderId || '';
-  const measurementId = runtime.measurementId || fallback.measurementId || '';
-  const firestoreDatabaseId = runtime.firestoreDatabaseId || fallback.firestoreDatabaseId || '';
+  const env = import.meta.env;
+  const apiKey = env.VITE_FIREBASE_API_KEY || '';
+  const projectId = env.VITE_FIREBASE_PROJECT_ID || '';
+  const appId = env.VITE_FIREBASE_APP_ID || '';
+  const authDomain = env.VITE_FIREBASE_AUTH_DOMAIN || '';
+  const storageBucket = env.VITE_FIREBASE_STORAGE_BUCKET || '';
+  const messagingSenderId = env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
+  const measurementId = env.VITE_FIREBASE_MEASUREMENT_ID || '';
+  const firestoreDatabaseId = env.VITE_FIREBASE_DATABASE_ID || '';
 
   if (!apiKey || !projectId) {
     throw new Error(
-      'Firebase configuration is incomplete. Set VITE_FIREBASE_* / FIREBASE_* env vars on the server (see /api/config/firebase).'
+      'Firebase configuration is incomplete. Please ensure VITE_FIREBASE_* environment variables are set in import.meta.env.'
     );
   }
 
@@ -93,14 +55,13 @@ function bindFirebaseServices(firebaseApp: FirebaseApp, firestoreDatabaseId: str
 }
 
 /**
- * Initialize Firebase from the server-provided runtime config endpoint.
+ * Initialize Firebase directly from import.meta.env.
  * Safe to call multiple times; subsequent calls reuse the same promise/app.
  */
 export async function initFirebase(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
-      const runtime = await fetchRuntimeFirebaseConfig();
-      const { options, firestoreDatabaseId } = resolveFirebaseConfig(runtime);
+      const { options, firestoreDatabaseId } = getFirebaseConfig();
       const firebaseApp = getApps().length ? getApp() : initializeApp(options);
       bindFirebaseServices(firebaseApp, firestoreDatabaseId);
     })().catch((error) => {
@@ -204,11 +165,11 @@ export function classifyFirestoreError(error: unknown): ClassifiedFirestoreError
   if (isPermission) {
     return {
       type: 'permission_denied',
-      title: 'Permission Denied · Firestore Security Rules',
+      title: 'Permission Denied · Security Policy',
       message:
-        'Access to Firestore fleet collections was rejected by database security rules (Missing or insufficient permissions).',
+        'Access to fleet collections was rejected by authorization rules (Missing or insufficient permissions).',
       resolution:
-        'Verify your Firestore security rules (firestore.rules) or ensure your technician account has valid authorization.',
+        'Verify your account authorization or ensure your technician profile has valid permissions.',
       details: code ? `[${code}] ${msg}` : msg,
       timestamp: new Date().toLocaleTimeString(),
     };
@@ -217,11 +178,11 @@ export function classifyFirestoreError(error: unknown): ClassifiedFirestoreError
   if (isNetwork) {
     return {
       type: 'network_unreachable',
-      title: 'Network Unreachable · Firestore Offline',
+      title: 'Network Unreachable · Offline',
       message:
-        'Unable to communicate with the Google Cloud Firestore backend. The client is offline or the network connection was interrupted.',
+        'Unable to communicate with the service backend. The client is offline or the network connection was interrupted.',
       resolution:
-        'Check your internet connection, verify that the Firestore service is reachable, and click Retry below.',
+        'Check your internet connection and click Retry below.',
       details: code ? `[${code}] ${msg}` : msg,
       timestamp: new Date().toLocaleTimeString(),
     };
@@ -229,9 +190,9 @@ export function classifyFirestoreError(error: unknown): ClassifiedFirestoreError
 
   return {
     type: 'other',
-    title: 'Firestore Database Connection Error',
-    message: msg || 'An unexpected error occurred while communicating with the Firestore database.',
-    resolution: 'Verify your Firebase project configuration and click Retry Connection below.',
+    title: 'Connection Error',
+    message: msg || 'An unexpected error occurred while communicating with the service.',
+    resolution: 'Verify your configuration and click Retry Connection below.',
     details: code ? `[${code}] ${msg}` : msg,
     timestamp: new Date().toLocaleTimeString(),
   };

@@ -105,16 +105,18 @@ export default function App() {
 
       if (mode === 'dashboard') {
         // TAB 1: DASHBOARD
-        // Fetch ONLY required data for Dashboard: machines & incidents. Do NOT fetch full knowledge base.
+        // Fetch required data for Dashboard: machines, incidents, and knowledge feed.
         const machPromise = !loadedResources.machines ? fetchMachines() : Promise.resolve(machines);
         const incPromise = !loadedResources.incidents ? fetchIncidents() : Promise.resolve(incidents);
+        const knowPromise = !loadedResources.knowledge ? fetchKnowledge() : Promise.resolve(knowledge);
 
-        const [machList, incList] = await Promise.all([machPromise, incPromise]);
+        const [machList, incList, knowList] = await Promise.all([machPromise, incPromise, knowPromise]);
 
         const safeMachList = (machList || []).filter((m): m is Machine => Boolean(m && m.machine_id));
         setMachines(safeMachList);
         setIncidents((incList || []).filter((i): i is Incident => Boolean(i && i.incident_id)));
-        setLoadedResources((prev) => ({ ...prev, machines: true, incidents: true }));
+        setKnowledge((knowList || []).filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id)));
+        setLoadedResources((prev) => ({ ...prev, machines: true, incidents: true, knowledge: true }));
 
       } else if (mode === 'investigation') {
         // TAB 2: INCIDENT INVESTIGATION
@@ -204,11 +206,11 @@ export default function App() {
     setIncidents((prev) => [newIncident, ...prev.filter((i) => i.incident_id !== newIncident.incident_id)]);
   };
 
-  // Handle adding new machine asset to central database
+  // Handle adding new machine asset
   const handleMachineAdded = async (newMachine: Machine) => {
     if (!isFirestoreConnected) {
       setInAppNotification({
-        message: 'Action blocked: No connection to Firestore database. Local storage is disabled.',
+        message: 'Action blocked: No active connection. Local storage is disabled.',
         type: 'error',
       });
       return;
@@ -218,23 +220,23 @@ export default function App() {
       setMachines((prev) => [newMachine, ...prev]);
       setActiveMachineId(newMachine.machine_id);
       setInAppNotification({
-        message: `Asset ${newMachine.machine_id} successfully saved to Firestore.`,
+        message: `Asset ${newMachine.machine_id} successfully saved.`,
         type: 'success',
       });
     } catch (err: any) {
       console.error('Failed to register machine in database:', err);
       setInAppNotification({
-        message: `Database write failed: ${err?.message || 'Could not save to Firestore'}. Local storage is disabled.`,
+        message: `Save failed: ${err?.message || 'Could not save asset'}. Local storage is disabled.`,
         type: 'error',
       });
     }
   };
 
-  // Handle updating machine asset specifications in central database
+  // Handle updating machine asset specifications
   const handleMachineUpdated = async (updatedMachine: Machine) => {
     if (!isFirestoreConnected) {
       setInAppNotification({
-        message: 'Action blocked: No connection to Firestore database. Local storage is disabled.',
+        message: 'Action blocked: No active connection. Local storage is disabled.',
         type: 'error',
       });
       return;
@@ -248,23 +250,23 @@ export default function App() {
         handleSelectMachineId(updatedMachine.machine_id);
       }
       setInAppNotification({
-        message: `Asset ${updatedMachine.machine_id} updated in Firestore.`,
+        message: `Asset ${updatedMachine.machine_id} updated.`,
         type: 'success',
       });
     } catch (err: any) {
       console.error('Failed to update machine in database:', err);
       setInAppNotification({
-        message: `Database update failed: ${err?.message || 'Could not update in Firestore'}. Local storage is disabled.`,
+        message: `Update failed: ${err?.message || 'Could not update asset'}. Local storage is disabled.`,
         type: 'error',
       });
     }
   };
 
-  // Handle deleting machine asset from central database
+  // Handle deleting machine asset
   const handleMachineDeleted = async (machineId: string) => {
     if (!isFirestoreConnected) {
       setInAppNotification({
-        message: 'Action blocked: No connection to Firestore database. Local storage is disabled.',
+        message: 'Action blocked: No active connection. Local storage is disabled.',
         type: 'error',
       });
       return;
@@ -276,13 +278,13 @@ export default function App() {
         setActiveMachineId('ALL');
       }
       setInAppNotification({
-        message: `Asset ${machineId} deleted from Firestore.`,
+        message: `Asset ${machineId} deleted.`,
         type: 'info',
       });
     } catch (err: any) {
       console.error('Failed to delete machine from database:', err);
       setInAppNotification({
-        message: `Database deletion failed: ${err?.message || 'Could not delete from Firestore'}.`,
+        message: `Deletion failed: ${err?.message || 'Could not delete asset'}.`,
         type: 'error',
       });
     }
@@ -586,7 +588,7 @@ export default function App() {
             onOpenAddMachine={() => {
               if (!isFirestoreConnected) {
                 setInAppNotification({
-                  message: 'Cannot register asset: No Firestore database connection. Local storage is disabled.',
+                  message: 'Cannot register asset: No active connection. Local storage is disabled.',
                   type: 'error',
                 });
                 return;

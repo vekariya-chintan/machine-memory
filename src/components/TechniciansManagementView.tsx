@@ -113,7 +113,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     if (!res.success || !res.technician) {
       if (onNotification) {
         onNotification({
-          message: res.error || 'Failed to register technician in database.',
+          message: res.error || 'Failed to register technician.',
           type: 'error',
         });
       }
@@ -154,7 +154,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     if (!res.success || !res.technician) {
       if (onNotification) {
         onNotification({
-          message: res.error || 'Failed to update technician in database.',
+          message: res.error || 'Failed to update technician.',
           type: 'error',
         });
       }
@@ -205,7 +205,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
       if (!res.success) {
         if (onNotification) {
           onNotification({
-            message: res.error || 'Failed to delete technician from database.',
+            message: res.error || 'Failed to delete technician.',
             type: 'error',
           });
         }
@@ -216,7 +216,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
 
       if (onNotification) {
         onNotification({
-          message: `Technician "${deletingTechnician.name}" (${deletingTechnician.technician_id}) deleted from database.`,
+          message: `Technician "${deletingTechnician.name}" (${deletingTechnician.technician_id}) deleted.`,
           type: 'info',
         });
       }
@@ -345,7 +345,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
           <p className="text-xs text-slate-400 max-w-sm">
             {searchQuery || selectedShift !== 'ALL' || selectedRole !== 'ALL'
               ? 'No technicians matched your filter criteria. Try adjusting your search query or filters.'
-              : 'The technicians database directory is currently empty. Click "Register Technician" to add one.'}
+              : 'The technicians directory is currently empty. Click "Register Technician" to add one.'}
           </p>
           {(searchQuery || selectedShift !== 'ALL' || selectedRole !== 'ALL') && (
             <button
@@ -508,7 +508,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Are you sure you want to delete <strong className="text-slate-100">{deletingTechnician.name}</strong> from the database? This action will permanently remove their records.
+              Are you sure you want to delete <strong className="text-slate-100">{deletingTechnician.name}</strong>? This action will permanently remove their records.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">

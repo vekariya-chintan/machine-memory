@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   orderBy,
+  limit,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
@@ -420,6 +421,8 @@ export async function fetchKnowledge(): Promise<KnowledgeItem[]> {
           } as KnowledgeItem;
         })
         .filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
+
+      sanitized.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       return sanitized;
     }

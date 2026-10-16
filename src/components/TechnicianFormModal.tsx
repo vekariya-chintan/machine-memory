@@ -241,7 +241,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         onClose();
       }
     } catch (err: any) {
-      setGeneralError(err?.message || 'Failed to save technician to database.');
+      setGeneralError(err?.message || 'Failed to save technician.');
     } finally {
       setIsSubmitting(false);
     }

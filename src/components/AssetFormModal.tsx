@@ -755,7 +755,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isEdit ? 'UPDATE ASSET' : 'REGISTER ASSET IN DATABASE'}</span>
+                  <span>{isEdit ? 'UPDATE ASSET' : 'REGISTER ASSET'}</span>
                 </>
               )}
             </button>

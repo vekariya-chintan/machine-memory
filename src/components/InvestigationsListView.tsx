@@ -405,7 +405,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
                         <strong className="text-slate-300">Verified by:</strong> {inc.verified_by}
                       </span>
                     ) : (
-                      <span className="text-slate-500 italic">Targeted protocol executed and logged to database.</span>
+                      <span className="text-slate-500 italic">Targeted protocol executed and logged.</span>
                     )}
                   </div>
 

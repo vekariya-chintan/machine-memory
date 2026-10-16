@@ -144,24 +144,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     (m) => m?.status === 'warning' || m?.status === 'critical'
   ) || validMachines[0];
 
-  // If data is loading or connection is resolving, display dedicated industrial loader
+  // If data is loading or connection is resolving, display loader
   if (isLoadingData) {
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-10 sm:p-16 text-center shadow-2xl backdrop-blur-xl flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_40%,rgba(6,182,212,0.1),transparent)] pointer-events-none" />
-        <div className="relative mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-            <Database className="w-8 h-8 text-cyan-400 animate-pulse" />
-          </div>
-          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-400 animate-ping" />
-        </div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800/80 text-cyan-400 text-xs font-mono font-bold uppercase mb-3 tracking-wider">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          Connecting to database...
-        </div>
-        <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
-          Retrieving Fleet Machinery & Institutional Memory
-        </h2>
+      <div className="flex flex-col items-center justify-center py-20 rounded-xl bg-slate-900/30 border border-slate-800 space-y-3">
+        <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+        <p className="text-sm font-mono text-slate-400">Loading dashboard...</p>
       </div>
     );
   }
@@ -202,16 +190,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               : 'bg-amber-950/90 border-amber-800 text-amber-300'
           }`}
         >
-          {isPermission ? 'Security Rules Violation' : 'Network Connectivity Failure'}
+          {isPermission ? 'Security Policy Notice' : 'Network Connectivity Failure'}
         </div>
 
         <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
-          {classifiedError?.title || (isPermission ? 'Permission Denied by Firestore Rules' : 'Network Unreachable (Firestore Offline)')}
+          {classifiedError?.title || (isPermission ? 'Permission Denied' : 'Network Unreachable')}
         </h2>
 
         <p className="text-xs sm:text-sm text-slate-300 max-w-lg mb-4 font-mono leading-relaxed">
           {classifiedError?.message ||
-            'The application cannot operate without an active connection to Google Cloud Firestore. In accordance with system policy, local fallback data and offline local storage have been disabled.'}
+            'The application cannot operate without an active network connection. In accordance with system policy, local fallback data and offline local storage have been disabled.'}
         </p>
 
         {classifiedError?.resolution && (
@@ -241,7 +229,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }`}
             >
               <RotateCcw className="w-4 h-4" />
-              {isPermission ? 'RETRY PERMISSION CHECK' : 'RETRY FIRESTORE CONNECTION'}
+              {isPermission ? 'RETRY PERMISSION CHECK' : 'RETRY CONNECTION'}
             </button>
           )}
         </div>
@@ -249,7 +237,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
   }
 
-  // If connected but no machines in Firestore
+  // If connected but no machines in collection
   if (validMachines.length === 0) {
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 sm:p-14 text-center shadow-2xl backdrop-blur-xl flex flex-col items-center justify-center min-h-[420px] relative overflow-hidden">
@@ -258,13 +246,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs font-mono font-bold uppercase mb-3">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          Firestore Database Connected
+          Connected
         </div>
         <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
           Fleet Collection Is Empty
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 max-w-lg mb-6 font-mono leading-relaxed">
-          Your Firestore database is online, but no machinery assets are registered in the <span className="text-slate-200">machines</span> collection. You can seed the baseline demonstration fleet into Firestore or manually register an asset.
+          The system is online, but no machinery assets are registered in the <span className="text-slate-200">machines</span> collection. You can initialize the baseline demonstration fleet or manually register an asset.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {onSeedDatabase && (
@@ -273,7 +261,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/40 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              SEED BASELINE FLEET TO FIRESTORE
+              INITIALIZE BASELINE FLEET
             </button>
           )}
           <button
@@ -300,9 +288,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d408_1px,transparent_1px),linear-gradient(to_bottom,#06b6d408_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none" />
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            {/* Left Column: Reverted Text & Operational Badges */}
-            <div className="space-y-3 max-w-2xl">
+          <div className="relative z-10 w-full">
+            {/* Reverted Text & Operational Badges */}
+            <div className="space-y-3 w-full">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-cyan-950/80 border border-cyan-800 text-cyan-300 shadow-sm">
                   <Activity className="w-3 h-3 text-cyan-400" />
@@ -325,67 +313,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed">
                 Displaying aggregate operations across all 5 subsystems of the automated CNC production line: Main Electrospindle, Hydraulic Power Unit, Planetary Rotary Gearbox, Through-Spindle Coolant Delivery, and Standby Diesel Generator. Click any asset below or select from the dropdown to view its individual operating data.
               </p>
-            </div>
-
-            {/* Right Column: Scalable Incident & Investigation Overview Card */}
-            <div className="bg-slate-950/80 border border-slate-800/90 rounded-lg p-3.5 sm:p-4 shrink-0 lg:max-w-md w-full space-y-3 shadow-inner">
-              <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-800/80 text-xs font-mono">
-                <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                  <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
-                  INCIDENT INVESTIGATIONS SUMMARY
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 border border-cyan-800 text-cyan-300">
-                  {safeIncidents.length} TOTAL RECORDS
-                </span>
-              </div>
-
-              {/* Scalable Incident KPI Grid */}
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-                  <div className="text-[10px] text-slate-400">ACTIVE ALERTS</div>
-                  <div className="text-lg font-bold text-amber-400 tabular-nums">
-                    {warningCount} <span className="text-[10px] font-normal text-slate-400">/ {totalAssetsCount} Assets</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-                  <div className="text-[10px] text-slate-400">VERIFIED RESOLVED</div>
-                  <div className="text-lg font-bold text-emerald-400 tabular-nums">
-                    {safeIncidents.filter((i) => i.status === 'verified' || i.status === 'resolved').length}
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Investigations Stream */}
-              <div className="space-y-1.5 pt-1">
-                <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                  <span>RECENT DIAGNOSTIC RECORDS:</span>
-                </div>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {safeIncidents.slice(0, 3).map((inc) => (
-                    <div
-                      key={inc.incident_id}
-                      onClick={() => onStartInvestigation(inc.machine_id)}
-                      className="p-2 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono cursor-pointer transition-colors"
-                    >
-                      <div className="truncate pr-2">
-                        <span className="text-cyan-400 font-bold mr-1.5">{inc.machine_id}</span>
-                        <span className="text-slate-300 truncate">{inc.symptom}</span>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800 shrink-0">
-                        {inc.date}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Live Telemetry Aggregate Readouts */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80 font-mono text-[10px] text-slate-400">
-                <span>TOTAL ASSETS: <strong className="text-slate-200">{totalAssetsCount}</strong></span>
-                <span>·</span>
-                <span>DOWNTIME SAVED: <strong className="text-emerald-400">{Math.round(totalDowntimeMinutes * 1.2)}m</strong></span>
-              </div>
             </div>
           </div>
         </div>

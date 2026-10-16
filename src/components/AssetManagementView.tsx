@@ -385,7 +385,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                 <span className="text-sm font-mono font-bold text-rose-400">{criticalCount} CRIT</span>
               )}
             </div>
-            <div className="text-[10px] font-mono text-slate-500 mt-0.5">Central Database Sync</div>
+            <div className="text-[10px] font-mono text-slate-500 mt-0.5">Central Sync</div>
           </div>
 
           <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">

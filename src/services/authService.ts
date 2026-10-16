@@ -83,7 +83,7 @@ export async function authenticateTechnician(
     if (!connected) {
       return {
         success: false,
-        error: 'Central database unreachable. Active Firestore connection required to authenticate.',
+        error: 'Service unreachable. Please verify your connection.',
       };
     }
 
@@ -155,7 +155,7 @@ export async function authenticateTechnician(
     console.error('Firestore authentication error:', error);
     return {
       success: false,
-      error: error?.message || 'Database authentication error. Please verify Firestore connection.',
+      error: error?.message || 'Authentication error. Please check your connection.',
     };
   }
 }

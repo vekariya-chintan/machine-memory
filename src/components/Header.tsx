@@ -165,10 +165,10 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline font-bold">RESET</span>
             </button>
 
-            {/* 3. Central Database Connection Indicator */}
+            {/* 3. Connection Indicator */}
             <div
               className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
-              title="Firestore central database connection status"
+              title="Connection status"
             >
               <Database className={`w-3.5 h-3.5 shrink-0 ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
               <span className={`text-[10px] sm:text-[11px] font-semibold ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
