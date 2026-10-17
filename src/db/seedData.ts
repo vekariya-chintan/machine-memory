@@ -540,7 +540,7 @@ export const SEED_USERS: User[] = [
   {
     technician_id: 'USR-MASTER-01',
     name: 'Master Admin',
-    email: 'admin@promtnova.com',
+    email: 'admin@promptnova.com',
     role: 'Master Admin',
     role_id: 'ROLE_MASTER_ADMIN',
     skills: ['Executive Reliability', 'ISO 10816-3 Compliance', 'SCADA', 'Plant Operations'],

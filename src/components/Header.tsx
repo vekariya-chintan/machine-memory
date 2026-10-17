@@ -123,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
                   MACHINE<span className="text-cyan-400">MEMORY</span>
                 </span>
                 <span className="text-[9px] font-mono text-cyan-400/95 font-bold tracking-widest mt-0.5 flex items-center gap-1">
-                  By Team PromtNova
+                  By Team PromptNova
                 </span>
               </div>
             </button>

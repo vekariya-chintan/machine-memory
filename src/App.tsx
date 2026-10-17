@@ -805,7 +805,7 @@ export default function App() {
             <span className="font-semibold text-slate-300">MACHINE MEMORY · INDUSTRIAL OPERATIONS PLATFORM</span>
           </div>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 text-slate-400">
-            <span>Developed by <strong className="text-cyan-400 font-bold">Team PromtNova</strong></span>
+            <span>Developed by <strong className="text-cyan-400 font-bold">Team PromptNova</strong></span>
             <span className="text-slate-800 hidden sm:inline">|</span>
             <span className="text-slate-500 text-[11px] hidden md:inline">ISO 10816-3 COMPLIANT ENGINE</span>
           </div>

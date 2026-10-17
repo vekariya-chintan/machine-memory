@@ -47,7 +47,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     authenticatedTechnician &&
       (authenticatedTechnician.role_id === 'ROLE_MASTER_ADMIN' ||
         authenticatedTechnician.role === 'Master Admin' ||
-        authenticatedTechnician.email?.toLowerCase() === 'admin@promtnova.com')
+        authenticatedTechnician.email?.toLowerCase() === 'admin@promptnova.com')
   );
 
   // Registration & Edit modal state
