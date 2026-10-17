@@ -82,12 +82,31 @@
         "password_hash": { "type": "string" },
         "encrypted_password": { "type": "string" },
         "role": { "type": "string" },
+        "role_id": { "type": "string" },
         "skills": { "type": "array" },
         "experience": { "type": "number" },
         "shift": { "type": "string" },
         "last_login": { "type": "string" }
       },
       "required": ["technician_id", "email"]
+    },
+    "users": {
+      "title": "User",
+      "description": "System user accounts, roles, access permissions, and encrypted credentials",
+      "type": "object",
+      "properties": {
+        "technician_id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "password_hash": { "type": "string" },
+        "role": { "type": "string" },
+        "role_id": { "type": "string" },
+        "skills": { "type": "array" },
+        "experience": { "type": "number" },
+        "shift": { "type": "string" },
+        "last_login": { "type": "string" }
+      },
+      "required": ["technician_id", "email", "role"]
     }
   },
   "firestore": {
@@ -110,6 +129,10 @@
     "/technicians/{technicianId}": {
       "schema": "technicians",
       "description": "Plant technicians directory"
+    },
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "System users and access directory"
     }
   }
 }

@@ -16,6 +16,10 @@ import {
 } from '../types/industrial';
 import { SearchableDropdown } from './SearchableDropdown';
 import { validateMachineInput } from '../lib/securityValidation';
+import {
+  fetchMasterOptions,
+  addOrGetMasterOption,
+} from '../services/masterDataService';
 
 export interface AssetFormModalProps {
   isOpen: boolean;
@@ -357,6 +361,13 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
 
     setIsSaving(true);
     try {
+      // Save / ensure master options in Firebase master collections
+      await Promise.all([
+        addOrGetMasterOption('subsystems', formSubsystem),
+        addOrGetMasterOption('iso_groups', formIsoGroup),
+        addOrGetMasterOption('foundation_types', formFoundation),
+      ]);
+
       await onSave(validation.sanitized as Machine);
       onClose();
     } catch (err: any) {

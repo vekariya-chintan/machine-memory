@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Cpu,
   Plus,
@@ -290,41 +290,62 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
     };
   }, [page]);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1) return;
-    setPage(newPage);
-  };
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, subsystemFilter, activeMachineId]);
 
-  // Filter machines
-  const filteredMachines = pagedMachines.filter((m) => {
-    if (!m) return false;
-    const matchesSearch =
-      (m.machine_id && m.machine_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (m.name && m.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (m.model && m.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (m.location && m.location.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Source machines dataset (full prop list or paged list)
+  const sourceMachines = useMemo(() => {
+    return propMachines && propMachines.length > 0 ? propMachines : pagedMachines;
+  }, [propMachines, pagedMachines]);
 
-    const matchesFilter =
-      subsystemFilter === 'all' ||
-      m.subsystem_type === subsystemFilter ||
-      (!m.subsystem_type && subsystemFilter === 'custom');
+  // Filter machines across full source dataset
+  const allFilteredMachines = useMemo(() => {
+    return sourceMachines.filter((m) => {
+      if (!m) return false;
+      const matchesActiveMachine = !activeMachineId || activeMachineId === 'ALL' || m.machine_id === activeMachineId;
+      const matchesSearch =
+        !searchTerm.trim() ||
+        (m.machine_id && m.machine_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (m.name && m.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (m.model && m.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (m.location && m.location.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    return matchesSearch && matchesFilter;
-  });
+      const matchesFilter =
+        subsystemFilter === 'all' ||
+        m.subsystem_type === subsystemFilter ||
+        (!m.subsystem_type && subsystemFilter === 'custom');
 
-  // Calculate Fleet Statistics based on loaded/paged dataset
-  const totalAssets = pagedMachines.length;
-  const warningCount = pagedMachines.filter((m) => m?.status === 'warning').length;
-  const criticalCount = pagedMachines.filter((m) => m?.status === 'critical').length;
-  const nominalCount = pagedMachines.filter((m) => m?.status === 'nominal').length;
+      return matchesActiveMachine && matchesSearch && matchesFilter;
+    });
+  }, [sourceMachines, activeMachineId, searchTerm, subsystemFilter]);
+
+  const hasActiveFilter = Boolean(searchTerm.trim() || subsystemFilter !== 'all' || (activeMachineId && activeMachineId !== 'ALL'));
+  const PAGE_SIZE = 10;
+  const totalFilteredPages = Math.max(1, Math.ceil(allFilteredMachines.length / PAGE_SIZE));
+
+  const filteredMachines = useMemo(() => {
+    if (hasActiveFilter) {
+      const start = (page - 1) * PAGE_SIZE;
+      return allFilteredMachines.slice(start, start + PAGE_SIZE);
+    }
+    return pagedMachines;
+  }, [hasActiveFilter, page, allFilteredMachines, pagedMachines]);
+
+  // Calculate Fleet Statistics based on dataset
+  const totalAssets = sourceMachines.length;
+  const warningCount = sourceMachines.filter((m: Machine) => m?.status === 'warning').length;
+  const criticalCount = sourceMachines.filter((m: Machine) => m?.status === 'critical').length;
+  const nominalCount = sourceMachines.filter((m: Machine) => m?.status === 'nominal').length;
   const avgVib =
     totalAssets > 0
       ? (
-          pagedMachines.reduce((acc, m) => acc + (m?.baseline_metrics?.normal_vibration_mms || 1.2), 0) /
+          sourceMachines.reduce((acc: number, m: Machine) => acc + (m?.baseline_metrics?.normal_vibration_mms || 1.2), 0) /
           totalAssets
         ).toFixed(2)
       : '1.20';
-  const totalKw = pagedMachines.reduce((acc, m) => acc + (m?.baseline_metrics?.power_baseline_kw || 0), 0).toFixed(1);
+  const totalKw = sourceMachines.reduce((acc: number, m: Machine) => acc + (m?.baseline_metrics?.power_baseline_kw || 0), 0).toFixed(1);
 
   // Suggest next machine ID
   const suggestNextId = () => {
@@ -548,13 +569,6 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
             <div className="text-xs text-slate-500">
               Try adjusting your search query or clear filters.
             </div>
-            <button
-              onClick={() => openCreateModal()}
-              className="mt-2 px-3 py-1.5 rounded bg-cyan-600 text-slate-950 text-xs font-bold inline-flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Register New Asset</span>
-            </button>
           </div>
         ) : (
           filteredMachines.map((m) => {
@@ -768,19 +782,28 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
       {/* Server-side Pagination Controls */}
       <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
         <div>
-          Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((propMachines || []).length / 10))}</strong>
+          Page <strong className="text-cyan-400">{page}</strong> of{' '}
+          <strong className="text-slate-400">
+            {hasActiveFilter
+              ? totalFilteredPages
+              : Math.max(1, Math.ceil((sourceMachines || []).length / PAGE_SIZE))}
+          </strong>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1 || isLoadingPage || (propMachines || []).length <= 10}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1 || isLoadingPage}
             className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
           >
             Previous
           </button>
           <button
-            onClick={() => handlePageChange(page + 1)}
-            disabled={!hasMore || isLoadingPage || (propMachines || []).length <= 10}
+            onClick={() => setPage((p) => p + 1)}
+            disabled={
+              hasActiveFilter
+                ? page >= totalFilteredPages
+                : !hasMore || isLoadingPage
+            }
             className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
           >
             Next

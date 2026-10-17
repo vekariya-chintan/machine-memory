@@ -22,6 +22,7 @@ import {
   deleteTechnicianFromDatabase,
 } from '../services/technicianService';
 import { TechnicianFormModal } from './TechnicianFormModal';
+import { fetchMasterOptions } from '../services/masterDataService';
 
 interface TechniciansManagementViewProps {
   authenticatedTechnician?: Technician | null;
@@ -40,6 +41,15 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
   const [selectedShift, setSelectedShift] = useState<string>('ALL');
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
 
+  // Master Admin role check: Only Master Admin can add, update any, or delete any user.
+  // Other users can only edit their own profile.
+  const isMasterAdmin = Boolean(
+    authenticatedTechnician &&
+      (authenticatedTechnician.role_id === 'ROLE_MASTER_ADMIN' ||
+        authenticatedTechnician.role === 'Master Admin' ||
+        authenticatedTechnician.email?.toLowerCase() === 'admin@promtnova.com')
+  );
+
   // Registration & Edit modal state
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -49,14 +59,14 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
   const [deletingTechnician, setDeletingTechnician] = useState<Technician | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load technicians from database
+  // Load users from database
   const loadTechnicians = async () => {
     setIsLoading(true);
     try {
       const data = await fetchTechniciansFromDatabase();
       setTechnicians(data);
     } catch (err: any) {
-      console.warn('Technician directory load notice:', err);
+      console.warn('User directory load notice:', err);
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +76,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     loadTechnicians();
   }, []);
 
-  // Filtered technicians
+  // Filtered users
   const filteredTechnicians = useMemo(() => {
     return technicians.filter((tech) => {
       const q = searchQuery.toLowerCase().trim();
@@ -95,17 +105,36 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
   const totalTechPages = Math.max(1, Math.ceil(filteredTechnicians.length / 12));
   const paginatedTechnicians = filteredTechnicians.slice((techPage - 1) * 12, techPage * 12);
 
-  // Unique shifts for filter
-  const availableShifts = useMemo(() => {
-    const set = new Set(technicians.map((t) => t.shift).filter(Boolean));
-    return Array.from(set).sort();
-  }, [technicians]);
+  const [masterRoles, setMasterRoles] = useState<string[]>([]);
+  const [masterShifts, setMasterShifts] = useState<string[]>([]);
 
-  // Unique roles for filter
-  const availableRoles = useMemo(() => {
-    const set = new Set(technicians.map((t) => t.role).filter(Boolean));
+  useEffect(() => {
+    const loadMasterFilters = async () => {
+      try {
+        const [r, s] = await Promise.all([
+          fetchMasterOptions('roles'),
+          fetchMasterOptions('shifts'),
+        ]);
+        setMasterRoles(r.map((item) => item.name));
+        setMasterShifts(s.map((item) => item.name));
+      } catch (e) {
+        console.warn('Failed loading master filter options:', e);
+      }
+    };
+    loadMasterFilters();
+  }, []);
+
+  // Shifts for filter (combining master database options and technician entries)
+  const availableShifts = useMemo(() => {
+    const set = new Set([...masterShifts, ...technicians.map((t) => t.shift).filter(Boolean)]);
     return Array.from(set).sort();
-  }, [technicians]);
+  }, [technicians, masterShifts]);
+
+  // Roles for filter (combining master database options and technician entries)
+  const availableRoles = useMemo(() => {
+    const set = new Set([...masterRoles, ...technicians.map((t) => t.role).filter(Boolean)]);
+    return Array.from(set).sort();
+  }, [technicians, masterRoles]);
 
   // Handle registration submission
   const handleRegisterSave = async (formData: {
@@ -122,7 +151,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     if (!res.success || !res.technician) {
       if (onNotification) {
         onNotification({
-          message: res.error || 'Failed to register technician.',
+          message: res.error || 'Failed to register user.',
           type: 'error',
         });
       }
@@ -137,7 +166,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
 
     if (onNotification) {
       onNotification({
-        message: `Technician "${res.technician.name}" (${res.technician.technician_id}) registered successfully.`,
+        message: `User "${res.technician.name}" (${res.technician.technician_id}) registered successfully.`,
         type: 'success',
       });
     }
@@ -163,7 +192,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     if (!res.success || !res.technician) {
       if (onNotification) {
         onNotification({
-          message: res.error || 'Failed to update technician.',
+          message: res.error || 'Failed to update user.',
           type: 'error',
         });
       }
@@ -189,7 +218,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
 
     if (onNotification) {
       onNotification({
-        message: `Technician "${updatedTech.name}" (${updatedTech.technician_id}) updated successfully.`,
+        message: `User "${updatedTech.name}" (${updatedTech.technician_id}) updated successfully.`,
         type: 'success',
       });
     }
@@ -214,7 +243,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
       if (!res.success) {
         if (onNotification) {
           onNotification({
-            message: res.error || 'Failed to delete technician.',
+            message: res.error || 'Failed to delete user.',
             type: 'error',
           });
         }
@@ -225,7 +254,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
 
       if (onNotification) {
         onNotification({
-          message: `Technician "${deletingTechnician.name}" (${deletingTechnician.technician_id}) deleted.`,
+          message: `User "${deletingTechnician.name}" (${deletingTechnician.technician_id}) deleted.`,
           type: 'info',
         });
       }
@@ -234,7 +263,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     } catch (err: any) {
       if (onNotification) {
         onNotification({
-          message: err?.message || 'Error deleting technician.',
+          message: err?.message || 'Error deleting user.',
           type: 'error',
         });
       }
@@ -245,7 +274,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 pt-1 pb-6 space-y-4">
-      {/* Top Bar: Title & Add Registration Button Only */}
+      {/* Top Bar: Title & Add Registration Button Only (Only Master Admin can see register button) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-cyan-950/60 border border-cyan-800/60 text-cyan-400">
@@ -254,26 +283,28 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-100 tracking-tight">
-                Plant Technicians
+                Users Directory
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-slate-800 text-xs font-mono font-medium text-slate-300">
                 {technicians.length}
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Plant maintenance personnel and engineering directory
+              User profiles and credentials directory
             </p>
           </div>
         </div>
 
-        {/* Add Registration Button */}
-        <button
-          onClick={() => setIsRegisterModalOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] shrink-0 self-start sm:self-center cursor-pointer"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Register Technician</span>
-        </button>
+        {/* Add Registration Button - Only visible for Master Admin */}
+        {isMasterAdmin && (
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] shrink-0 self-start sm:self-center cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Register User</span>
+          </button>
+        )}
       </div>
 
       {/* Filters Only Bar */}
@@ -351,18 +382,18 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 rounded-xl bg-slate-900/30 border border-slate-800 space-y-3">
           <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
-          <p className="text-sm font-mono text-slate-400">Loading technicians...</p>
+          <p className="text-sm font-mono text-slate-400">Loading users...</p>
         </div>
       ) : filteredTechnicians.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl bg-slate-900/30 border border-slate-800 text-center space-y-3">
           <div className="p-3 rounded-full bg-slate-800/60 text-slate-500">
             <Users className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-semibold text-slate-200">No technicians found</h3>
+          <h3 className="text-base font-semibold text-slate-200">No users found</h3>
           <p className="text-xs text-slate-400 max-w-sm">
             {searchQuery || selectedShift !== 'ALL' || selectedRole !== 'ALL'
-              ? 'No technicians matched your filter criteria. Try adjusting your search query or filters.'
-              : 'The technicians directory is currently empty. Click "Register Technician" to add one.'}
+              ? 'No users matched your filter criteria. Try adjusting your search query or filters.'
+              : 'The users directory is currently empty.'}
           </p>
           {(searchQuery || selectedShift !== 'ALL' || selectedRole !== 'ALL') && (
             <button
@@ -389,6 +420,17 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                 .join('')
                 .toUpperCase();
 
+              // RBAC Permission Logic:
+              // - Master Admin can edit and delete any user (except cannot delete own self).
+              // - Regular user can only edit their own profile card; cannot edit or delete others.
+              const isSelf = Boolean(
+                authenticatedTechnician &&
+                  (tech.technician_id === authenticatedTechnician.technician_id ||
+                    tech.email.toLowerCase() === authenticatedTechnician.email.toLowerCase())
+              );
+              const canEdit = (isMasterAdmin && tech.technician_id !== 'USR-MASTER-01') || isSelf;
+              const canDelete = isMasterAdmin && !isSelf && tech.technician_id !== 'USR-MASTER-01';
+
               return (
                 <div
                   key={tech.technician_id}
@@ -399,12 +441,19 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-900/80 to-slate-800 border border-cyan-800/60 flex items-center justify-center text-cyan-300 font-mono font-bold text-sm shadow-inner shrink-0">
-                          {initials || 'TC'}
+                          {initials || 'US'}
                         </div>
                         <div>
-                          <h2 className="text-base font-bold text-slate-100 leading-snug">
-                            {tech.name}
-                          </h2>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-base font-bold text-slate-100 leading-snug">
+                              {tech.name}
+                            </h2>
+                            {isSelf && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                                YOU
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs font-medium text-cyan-400">
                             {tech.role}
                           </span>
@@ -416,26 +465,30 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                           {tech.technician_id}
                         </span>
 
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => {
-                            setEditingTechnician(tech);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-300 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
-                          title={`Edit ${tech.name}`}
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Edit Button - Master Admin can edit all; non-master can only edit self */}
+                        {canEdit && (
+                          <button
+                            onClick={() => {
+                              setEditingTechnician(tech);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-300 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
+                            title={isSelf ? 'Edit your profile' : `Edit ${tech.name}`}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => setDeletingTechnician(tech)}
-                          className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-950 hover:text-rose-400 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
-                          title={`Delete ${tech.name}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Delete Button - Only Master Admin can delete (and cannot delete self) */}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeletingTechnician(tech)}
+                            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-950 hover:text-rose-400 border border-slate-700/60 text-slate-400 transition-colors cursor-pointer"
+                            title={`Delete ${tech.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -511,18 +564,19 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
         </div>
       )}
 
-      {/* Registration Modal */}
-      {isRegisterModalOpen && (
+      {/* Registration Modal - Only accessible to Master Admin */}
+      {isRegisterModalOpen && isMasterAdmin && (
         <TechnicianFormModal
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
           onSave={handleRegisterSave}
           mode="create"
           existingTechnicians={technicians}
+          isMasterAdmin={isMasterAdmin}
         />
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Modal - Master Admin can edit any user; regular user can edit self */}
       {isEditModalOpen && editingTechnician && (
         <TechnicianFormModal
           isOpen={isEditModalOpen}
@@ -534,11 +588,12 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
           mode="edit"
           initialData={editingTechnician}
           existingTechnicians={technicians}
+          isMasterAdmin={isMasterAdmin}
         />
       )}
 
       {/* Delete Confirmation Modal */}
-      {deletingTechnician && (
+      {deletingTechnician && isMasterAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="relative w-full max-w-md bg-slate-900 border border-rose-800/60 rounded-2xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-3">
@@ -546,7 +601,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-100">Confirm Technician Deletion</h3>
+                <h3 className="text-base font-bold text-slate-100">Confirm User Deletion</h3>
                 <p className="text-xs text-slate-400 font-mono">{deletingTechnician.technician_id}</p>
               </div>
             </div>
@@ -576,7 +631,7 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                     <span>Deleting...</span>
                   </>
                 ) : (
-                  <span>Delete Technician</span>
+                  <span>Delete User</span>
                 )}
               </button>
             </div>

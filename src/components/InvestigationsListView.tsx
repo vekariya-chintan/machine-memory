@@ -58,7 +58,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
     let isMounted = true;
     setIsLoadingPage(true);
     const cursor = pageCursors[page - 1] || null;
-    fetchIncidentsPage(10, cursor)
+    fetchIncidentsPage(5, cursor)
       .then((res) => {
         if (isMounted) {
           setPagedIncidents(res.incidents);
@@ -107,9 +107,26 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
     }));
   }, [machines]);
 
-  // Filter investigations based on search query and status filter
-  const filteredIncidents = useMemo(() => {
-    return (pagedIncidents || []).filter((inc) => {
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter, activeMachineId]);
+
+  // Source incidents dataset (full prop list or paged list)
+  const sourceIncidents = useMemo(() => {
+    return incidents && incidents.length > 0 ? incidents : pagedIncidents;
+  }, [incidents, pagedIncidents]);
+
+  // Filter investigations based on search query, machine filter, and status filter
+  const allFilteredIncidents = useMemo(() => {
+    return sourceIncidents.filter((inc) => {
+      if (!inc) return false;
+
+      // Machine filter
+      if (activeMachineId && activeMachineId !== 'ALL' && inc.machine_id !== activeMachineId) {
+        return false;
+      }
+
       // Status filter
       if (statusFilter !== 'all' && inc.status !== statusFilter) {
         return false;
@@ -142,10 +159,22 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
 
       return true;
     });
-  }, [pagedIncidents, statusFilter, searchQuery, machineMap]);
+  }, [sourceIncidents, activeMachineId, statusFilter, searchQuery, machineMap]);
+
+  const hasActiveFilter = Boolean(searchQuery.trim() || statusFilter !== 'all' || (activeMachineId && activeMachineId !== 'ALL'));
+  const PAGE_SIZE = 5;
+  const totalFilteredPages = Math.max(1, Math.ceil(allFilteredIncidents.length / PAGE_SIZE));
+
+  const filteredIncidents = useMemo(() => {
+    if (hasActiveFilter) {
+      const start = (page - 1) * PAGE_SIZE;
+      return allFilteredIncidents.slice(start, start + PAGE_SIZE);
+    }
+    return pagedIncidents;
+  }, [hasActiveFilter, page, allFilteredIncidents, pagedIncidents]);
 
   // KPI Calculations based on paged / loaded dataset
-  const totalCount = (incidents || []).length;
+  const totalCount = sourceIncidents.length;
   const verifiedCount = pagedIncidents.filter((i) => i.status === 'verified' || i.status === 'resolved').length;
   const inProgressCount = pagedIncidents.filter((i) => i.status === 'investigating').length;
   const totalDowntimeMinutes = pagedIncidents.reduce((sum, i) => sum + (i.downtime || 0), 0);
@@ -310,16 +339,9 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
           <div className="space-y-1">
             <h3 className="text-base font-bold text-slate-200">No matching incident investigations found</h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              No investigations match the current search or asset filter criteria. Start a new incident investigation or clear filters to view all records.
+              No investigations match the current search or asset filter criteria. Clear filters or adjust search parameters to view records.
             </p>
           </div>
-          <button
-            onClick={() => onStartNewInvestigation(activeMachineId !== 'ALL' ? activeMachineId : 'M001')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>START NEW INCIDENT INVESTIGATION</span>
-          </button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -473,19 +495,28 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
       {/* Server-side Pagination Controls */}
       <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
         <div>
-          Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil(totalCount / 10))}</strong>
+          Page <strong className="text-cyan-400">{page}</strong> of{' '}
+          <strong className="text-slate-400">
+            {hasActiveFilter
+              ? totalFilteredPages
+              : Math.max(1, Math.ceil((sourceIncidents || []).length / PAGE_SIZE))}
+          </strong>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1 || isLoadingPage || totalCount <= 10}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1 || isLoadingPage}
             className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
           >
             Previous
           </button>
           <button
-            onClick={() => handlePageChange(page + 1)}
-            disabled={!hasMore || isLoadingPage || totalCount <= 10}
+            onClick={() => setPage((p) => p + 1)}
+            disabled={
+              hasActiveFilter
+                ? page >= totalFilteredPages
+                : !hasMore || isLoadingPage
+            }
             className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
           >
             Next

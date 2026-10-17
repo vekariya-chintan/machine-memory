@@ -168,14 +168,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalMachinePages = Math.ceil(sortedMachines.length / 5) || 1;
   const pagedMachines = sortedMachines.slice((machinePage - 1) * 5, machinePage * 5);
 
-  // Filtered lists for particular asset mode
-  const particularIncidents = selectedMachine
-    ? pagedIncidentsState.filter((inc) => inc.machine_id === selectedMachine.machine_id)
-    : pagedIncidentsState;
+  // Source incidents dataset (full prop list or server paged list)
+  const sourceIncidents = React.useMemo(() => {
+    return safeIncidents && safeIncidents.length > 0 ? safeIncidents : pagedIncidentsState;
+  }, [safeIncidents, pagedIncidentsState]);
 
-  const totalIncidentsCount = safeIncidents.length;
-  const totalIncidentPages = Math.max(1, Math.ceil(totalIncidentsCount / 10));
-  const pagedIncidents = particularIncidents;
+  // Determine if active asset filter is active
+  const hasActiveFilter = !isAllAssetsMode && Boolean(selectedMachine);
+
+  // Filter incidents across full source dataset
+  const allFilteredIncidents = React.useMemo(() => {
+    return sourceIncidents.filter((inc) => {
+      if (!inc) return false;
+      if (hasActiveFilter && selectedMachine && inc.machine_id !== selectedMachine.machine_id) {
+        return false;
+      }
+      return true;
+    });
+  }, [sourceIncidents, hasActiveFilter, selectedMachine]);
+
+  const PAGE_SIZE = 10;
+  const totalIncidentsCount = hasActiveFilter
+    ? allFilteredIncidents.length
+    : (safeIncidents.length > 0 ? safeIncidents.length : sourceIncidents.length);
+
+  const totalIncidentPages = Math.max(1, Math.ceil(totalIncidentsCount / PAGE_SIZE));
+
+  const pagedIncidents = React.useMemo(() => {
+    if (hasActiveFilter) {
+      const start = (incidentPage - 1) * PAGE_SIZE;
+      return allFilteredIncidents.slice(start, start + PAGE_SIZE);
+    }
+    return pagedIncidentsState;
+  }, [hasActiveFilter, incidentPage, allFilteredIncidents, pagedIncidentsState]);
 
   // Subsystem badge helper
   const getSubsystemLabel = (type?: string) => {
@@ -1013,12 +1038,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
           </div>
           <span className="text-xs font-mono text-slate-400">
-            SHOWING {particularIncidents.length} RECORDS · DOWNTIME:{' '}
-            {particularIncidents.reduce((acc, curr) => acc + (curr?.downtime || 0), 0)} MINS
+            SHOWING {pagedIncidents.length} RECORDS · DOWNTIME:{' '}
+            {allFilteredIncidents.reduce((acc, curr) => acc + (curr?.downtime || 0), 0)} MINS
           </span>
         </div>
 
-        {particularIncidents.length === 0 ? (
+        {pagedIncidents.length === 0 ? (
           <div className="p-6 text-center text-xs font-mono text-slate-400 bg-slate-950 rounded border border-slate-800">
             <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400 mb-2" />
             <div className="font-semibold text-slate-200">
@@ -1107,22 +1132,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </table>
             </div>
 
-            {/* Server-side Pagination Controls */}
+            {/* Server-side / Client-filtered Pagination Controls */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 px-1 border-t border-slate-800 text-xs font-mono text-slate-400">
               <span>
-                Page <strong className="text-cyan-400">{incidentPage}</strong> of <strong className="text-slate-400">{totalIncidentPages}</strong> ({totalIncidentsCount} total records)
+                Page <strong className="text-cyan-400">{incidentPage}</strong> of{' '}
+                <strong className="text-slate-400">{totalIncidentPages}</strong> ({totalIncidentsCount} total records)
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleIncidentPageChange(incidentPage - 1)}
-                  disabled={incidentPage === 1 || isLoadingIncidents || totalIncidentsCount <= 10}
+                  disabled={incidentPage === 1 || isLoadingIncidents}
                   className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Previous
                 </button>
                 <button
                   onClick={() => handleIncidentPageChange(incidentPage + 1)}
-                  disabled={!hasMoreIncidents || isLoadingIncidents || totalIncidentsCount <= 10}
+                  disabled={
+                    hasActiveFilter
+                      ? incidentPage >= totalIncidentPages
+                      : !hasMoreIncidents || isLoadingIncidents
+                  }
                   className="px-3 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Next

@@ -12,6 +12,11 @@ import {
   validateTechnicianForm,
   containsMaliciousPayload,
 } from '../services/technicianService';
+import {
+  fetchMasterOptions,
+  addOrGetMasterOption,
+  MasterOption,
+} from '../services/masterDataService';
 
 interface TechnicianFormModalProps {
   isOpen: boolean;
@@ -29,9 +34,10 @@ interface TechnicianFormModalProps {
   mode?: 'create' | 'edit';
   initialData?: Technician | null;
   existingTechnicians: Technician[];
+  isMasterAdmin?: boolean;
 }
 
-const COMMON_ROLES = [
+const COMMON_ROLES_FALLBACK = [
   'Lead Master Technician',
   'Reliability & Telemetry Engineer',
   'Junior Maintenance Specialist',
@@ -43,7 +49,7 @@ const COMMON_ROLES = [
   'Rotating Equipment Reliability Lead',
 ];
 
-const COMMON_SHIFTS = [
+const COMMON_SHIFTS_FALLBACK = [
   'Day Shift · Automated Machining Lines',
   'Swing Shift · Automated Machining Lines',
   'Night Shift · Autonomous Monitoring',
@@ -53,7 +59,7 @@ const COMMON_SHIFTS = [
   'Weekend Emergency Reliability Team',
 ];
 
-const PRESET_SKILLS = [
+const PRESET_SKILLS_FALLBACK = [
   'ISO 10816-3 Compliance',
   'Spindle Alignment',
   'Vibration Analysis ISO-II',
@@ -75,15 +81,22 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
   mode = 'create',
   initialData = null,
   existingTechnicians,
+  isMasterAdmin = true,
 }) => {
   const [technicianId, setTechnicianId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState(COMMON_ROLES[0]);
+
+  // Master options states from Firebase
+  const [roleMasterOptions, setRoleMasterOptions] = useState<MasterOption[]>([]);
+  const [shiftMasterOptions, setShiftMasterOptions] = useState<MasterOption[]>([]);
+  const [skillMasterOptions, setSkillMasterOptions] = useState<MasterOption[]>([]);
+
+  const [role, setRole] = useState('');
   const [customRole, setCustomRole] = useState('');
-  const [shift, setShift] = useState(COMMON_SHIFTS[0]);
+  const [shift, setShift] = useState('');
   const [customShift, setCustomShift] = useState('');
   const [experience, setExperience] = useState<number | string>(5);
   const [skills, setSkills] = useState<string[]>([]);
@@ -93,6 +106,48 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch master dropdown values from Firebase whenever modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    const loadMasterData = async () => {
+      try {
+        const [fetchedRoles, fetchedShifts, fetchedSkills] = await Promise.all([
+          fetchMasterOptions('roles'),
+          fetchMasterOptions('shifts'),
+          fetchMasterOptions('skills'),
+        ]);
+
+        if (isMounted) {
+          setRoleMasterOptions(fetchedRoles);
+          setShiftMasterOptions(fetchedShifts);
+          setSkillMasterOptions(fetchedSkills);
+        }
+      } catch (err) {
+        console.warn('Failed to load master dropdowns from Firebase:', err);
+      }
+    };
+
+    loadMasterData();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  // Derived arrays of option names (falling back to constants if loading)
+  const availableRoles = roleMasterOptions.length > 0
+    ? roleMasterOptions.map((r) => r.name)
+    : COMMON_ROLES_FALLBACK;
+
+  const availableShifts = shiftMasterOptions.length > 0
+    ? shiftMasterOptions.map((s) => s.name)
+    : COMMON_SHIFTS_FALLBACK;
+
+  const availableSkills = skillMasterOptions.length > 0
+    ? skillMasterOptions.map((sk) => sk.name)
+    : PRESET_SKILLS_FALLBACK;
+
   // Initialize form fields for create or edit mode
   useEffect(() => {
     if (!isOpen) return;
@@ -101,12 +156,15 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
     setGeneralError(null);
     setPassword('');
 
+    const defaultRole = availableRoles[0] || COMMON_ROLES_FALLBACK[0];
+    const defaultShift = availableShifts[0] || COMMON_SHIFTS_FALLBACK[0];
+
     if (mode === 'edit' && initialData) {
       setTechnicianId(initialData.technician_id);
       setName(initialData.name || '');
       setEmail(initialData.email || '');
 
-      const isKnownRole = COMMON_ROLES.includes(initialData.role);
+      const isKnownRole = availableRoles.includes(initialData.role);
       if (isKnownRole) {
         setRole(initialData.role);
         setCustomRole('');
@@ -115,7 +173,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         setCustomRole(initialData.role || '');
       }
 
-      const isKnownShift = COMMON_SHIFTS.includes(initialData.shift);
+      const isKnownShift = availableShifts.includes(initialData.shift);
       if (isKnownShift) {
         setShift(initialData.shift);
         setCustomShift('');
@@ -127,30 +185,30 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
       setExperience(initialData.experience ?? 5);
       setSkills(Array.isArray(initialData.skills) ? [...initialData.skills] : []);
     } else {
-      // Auto-generate next technician ID for create mode
+      // Auto-generate next user ID for create mode
       if (existingTechnicians.length > 0) {
         const numbers = existingTechnicians
           .map((t) => {
-            const match = t.technician_id.match(/TECH-(\d+)/i);
+            const match = t.technician_id.match(/(?:USR|TECH)-(\d+)/i);
             return match ? parseInt(match[1], 10) : 0;
           })
           .filter((n) => !isNaN(n));
         const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : existingTechnicians.length + 1;
         const padded = String(nextNum).padStart(2, '0');
-        setTechnicianId(`TECH-${padded}`);
+        setTechnicianId(`USR-${padded}`);
       } else {
-        setTechnicianId('TECH-01');
+        setTechnicianId('USR-01');
       }
       setName('');
       setEmail('');
-      setRole(COMMON_ROLES[0]);
+      setRole(defaultRole);
       setCustomRole('');
-      setShift(COMMON_SHIFTS[0]);
+      setShift(defaultShift);
       setCustomShift('');
       setExperience(5);
       setSkills(['Vibration Analysis ISO-II', 'Hydraulics']);
     }
-  }, [isOpen, mode, initialData, existingTechnicians]);
+  }, [isOpen, mode, initialData, existingTechnicians, roleMasterOptions, shiftMasterOptions]);
 
   if (!isOpen) return null;
 
@@ -200,16 +258,16 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
     e.preventDefault();
     setGeneralError(null);
 
-    const effectiveRole = role === 'CUSTOM' ? customRole.trim() : role;
-    const effectiveShift = shift === 'CUSTOM' ? customShift.trim() : shift;
+    const rawRole = role === 'CUSTOM' ? customRole.trim() : role;
+    const rawShift = shift === 'CUSTOM' ? customShift.trim() : shift;
 
     const validation = validateTechnicianForm(
       {
         technician_id: technicianId,
         name,
         email,
-        role: effectiveRole,
-        shift: effectiveShift,
+        role: rawRole,
+        shift: rawShift,
         experience,
         skills,
         password,
@@ -220,18 +278,26 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
 
     if (!validation.isValid) {
       setErrors(validation.errors);
-      // Field validation messages are displayed below each field, so do not display error message at top of the form
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Save or ensure custom values exist in Firebase master collections
+      const masterRoleObj = await addOrGetMasterOption('roles', validation.sanitized.role);
+      const masterShiftObj = await addOrGetMasterOption('shifts', validation.sanitized.shift);
+
+      // Save custom skill tags in Firebase master_skills
+      for (const skillItem of validation.sanitized.skills) {
+        await addOrGetMasterOption('skills', skillItem);
+      }
+
       const success = await onSave({
         technician_id: validation.sanitized.technician_id,
         name: validation.sanitized.name,
         email: validation.sanitized.email,
-        role: validation.sanitized.role,
-        shift: validation.sanitized.shift,
+        role: masterRoleObj.name,
+        shift: masterShiftObj.name,
         experience: validation.sanitized.experience,
         skills: validation.sanitized.skills,
         password: validation.sanitized.password,
@@ -241,11 +307,13 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         onClose();
       }
     } catch (err: any) {
-      setGeneralError(err?.message || 'Failed to save technician.');
+      setGeneralError(err?.message || 'Failed to save user.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const canEditRole = mode === 'create' || isMasterAdmin;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
@@ -257,7 +325,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
               <UserPlus className="w-5 h-5" />
             </div>
             <h2 className="text-base font-bold text-slate-100">
-              {mode === 'edit' ? 'Edit Technician' : 'Register Technician'}
+              {mode === 'edit' ? 'Edit User' : 'Register User'}
             </h2>
           </div>
           <button
@@ -278,11 +346,11 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
             </div>
           )}
 
-          {/* Row 1: Technician ID & Name */}
+          {/* Row 1: User ID & Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-mono text-slate-300 mb-1.5 font-semibold">
-                TECHNICIAN ID <span className="text-cyan-400">*</span>
+                USER ID <span className="text-cyan-400">*</span>
               </label>
               <input
                 type="text"
@@ -293,7 +361,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                   handleInputChange('technician_id', upper);
                 }}
                 disabled={isSubmitting || mode === 'edit'}
-                placeholder="e.g. TECH-05"
+                placeholder="e.g. USR-05"
                 className={`w-full px-3.5 py-2 rounded-lg bg-slate-950 border font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none transition-colors ${
                   mode === 'edit'
                     ? 'opacity-60 cursor-not-allowed border-slate-800'
@@ -344,7 +412,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                   handleInputChange('email', e.target.value);
                 }}
                 disabled={isSubmitting}
-                placeholder="e.g. marcus.vance@promptnova.com"
+                placeholder="e.g. user@promptnova.com"
                 className={`w-full px-3.5 py-2 rounded-lg bg-slate-950 border text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none transition-colors ${
                   errors.email ? 'border-rose-500 focus:border-rose-500' : 'border-slate-800 focus:border-cyan-500'
                 }`}
@@ -392,21 +460,26 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
             <div>
               <label className="block text-xs font-mono text-slate-300 mb-1.5 font-semibold">
                 ROLE <span className="text-cyan-400">*</span>
+                {!canEditRole && (
+                  <span className="text-[10px] text-slate-400 ml-1.5 font-normal">(Locked: Master Admin role edit only)</span>
+                )}
               </label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                disabled={isSubmitting}
-                className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors"
+                disabled={isSubmitting || !canEditRole}
+                className={`w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors ${
+                  !canEditRole ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               >
-                {COMMON_ROLES.map((r) => (
+                {availableRoles.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
                 ))}
-                <option value="CUSTOM">Custom Role...</option>
+                {canEditRole && <option value="CUSTOM">Custom Role...</option>}
               </select>
-              {role === 'CUSTOM' && (
+              {canEditRole && role === 'CUSTOM' && (
                 <input
                   type="text"
                   value={customRole}
@@ -414,7 +487,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                     setCustomRole(e.target.value);
                     handleInputChange('role', e.target.value);
                   }}
-                  placeholder="Enter role..."
+                  placeholder="Enter custom role..."
                   className="mt-2 w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               )}
@@ -433,7 +506,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                 disabled={isSubmitting}
                 className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors"
               >
-                {COMMON_SHIFTS.map((s) => (
+                {availableShifts.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -448,7 +521,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                     setCustomShift(e.target.value);
                     handleInputChange('shift', e.target.value);
                   }}
-                  placeholder="Enter shift..."
+                  placeholder="Enter custom shift..."
                   className="mt-2 w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               )}
@@ -543,7 +616,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
 
             {/* Quick skill presets */}
             <div className="flex flex-wrap gap-1">
-              {PRESET_SKILLS.map((preset) => {
+              {availableSkills.map((preset) => {
                 const isSelected = skills.includes(preset);
                 return (
                   <button
@@ -583,7 +656,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || Object.keys(errors).length > 0}
-              className="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-cyan-950/50 cursor-pointer"
+              className="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-cyan-950/50"
             >
               {isSubmitting ? (
                 <>
@@ -591,7 +664,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
                   <span>Saving...</span>
                 </>
               ) : (
-                <span>{mode === 'edit' ? 'Update Technician' : 'Register Technician'}</span>
+                <span>{mode === 'edit' ? 'Update User' : 'Register User'}</span>
               )}
             </button>
           </div>

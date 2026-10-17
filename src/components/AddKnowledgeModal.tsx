@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, BookOpen, Sparkles, CheckCircle2, AlertCircle, Database, Plus } from 'lucide-react';
 import { Machine, KnowledgeItem } from '../types/industrial';
 import { validateKnowledgeInput } from '../lib/securityValidation';
+import {
+  fetchMasterOptions,
+  addOrGetMasterOption,
+  MasterOption,
+} from '../services/masterDataService';
 
 interface AddKnowledgeModalProps {
   isOpen: boolean;
@@ -31,9 +36,24 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [masterKnowledgeTypes, setMasterKnowledgeTypes] = useState<MasterOption[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    fetchMasterOptions('knowledge_types')
+      .then((opts) => {
+        if (isMounted && opts.length > 0) {
+          setMasterKnowledgeTypes(opts);
+        }
+      })
+      .catch((err) => console.warn('Knowledge types load note:', err));
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
-
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +84,9 @@ export const AddKnowledgeModal: React.FC<AddKnowledgeModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Ensure knowledge type is saved in Firebase master_knowledge_types
+      await addOrGetMasterOption('knowledge_types', type);
+
       await onSave(validation.sanitized);
       // Reset form
       setTitle('');

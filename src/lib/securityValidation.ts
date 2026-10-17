@@ -71,7 +71,7 @@ export function validateMachineInput(
   } else if (!/^[A-Z0-9-_]{3,20}$/.test(sanitizedId)) {
     errors.machine_id = 'Asset ID must be 3-20 characters: uppercase letters, numbers, hyphens, and underscores only (e.g., M001).';
   } else if (!isEditMode && existingMachineIds.map((id) => id.toUpperCase()).includes(sanitizedId)) {
-    errors.machine_id = `Asset ID "${sanitizedId}" already exists in the database.`;
+    errors.machine_id = `Asset ID "${sanitizedId}" already exists.`;
   }
 
   const rawName = (data?.name || '').trim();

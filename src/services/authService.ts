@@ -28,8 +28,10 @@ export async function ensureTechniciansTablePopulated(_initialPassword?: string)
       return [];
     }
 
-    const techCol = collection(db, 'technicians');
-    const snap = await getDocs(techCol);
+    let snap = await getDocs(collection(db, 'users'));
+    if (snap.empty) {
+      snap = await getDocs(collection(db, 'technicians'));
+    }
 
     if (!snap.empty) {
       return snap.docs
@@ -37,9 +39,10 @@ export async function ensureTechniciansTablePopulated(_initialPassword?: string)
           const data = d.data();
           return {
             technician_id: String(data.technician_id || d.id),
-            name: data.name || 'Technician',
+            name: data.name || 'User',
             email: String(data.email || ''),
             role: data.role || 'Maintenance Specialist',
+            role_id: data.role_id ? String(data.role_id) : (data.role === 'Master Admin' ? 'ROLE_MASTER_ADMIN' : undefined),
             skills: Array.isArray(data.skills) ? data.skills : [],
             experience: Number(data.experience ?? 5),
             shift: data.shift || 'Day Shift',
@@ -50,17 +53,15 @@ export async function ensureTechniciansTablePopulated(_initialPassword?: string)
         .filter((t): t is Technician => Boolean(t && t.technician_id));
     }
 
-    // Database is empty - no auto-seeding. Run `npm run seed` to populate baseline data.
     return [];
   } catch (error) {
-    console.warn('Could not load technicians from Firestore database:', error);
+    console.warn('Could not load users from Firestore database:', error);
     return [];
   }
 }
 
 /**
- * Authenticates technician directly against Firestore database.
- * No credentials or sensitive data are stored locally.
+ * Authenticates user directly against Firestore database.
  */
 export async function authenticateTechnician(
   rawEmail: string,
@@ -78,7 +79,6 @@ export async function authenticateTechnician(
   }
 
   try {
-    // 1. Ensure Firestore database is reachable
     const connected = await testFirestoreConnection();
     if (!connected) {
       return {
@@ -87,11 +87,13 @@ export async function authenticateTechnician(
       };
     }
 
-    // 2. Query Firestore directly for the technician directory
-    const techCollection = collection(db, 'technicians');
-    const snap = await getDocs(techCollection);
+    const usersCollection = collection(db, 'users');
+    let snap = await getDocs(usersCollection);
+    if (snap.empty) {
+      const techCol = collection(db, 'technicians');
+      snap = await getDocs(techCol);
+    }
 
-    // 3. Find matching technician in database
     const matchingDoc = snap.docs.find((d) => {
       const data = d.data();
       return String(data.email || '').trim().toLowerCase() === normalizedEmail;
@@ -107,7 +109,6 @@ export async function authenticateTechnician(
     const techData = matchingDoc.data();
     const enteredHash = await computeSha256(trimmedPassword);
 
-    // 4. Verify password hash directly against Firestore database record
     const storedHash = techData.password_hash || techData.encrypted_password;
 
     if (storedHash) {
@@ -118,24 +119,22 @@ export async function authenticateTechnician(
         };
       }
     } else {
-      // First-time initialization in database: store credential directly into Firestore
-      await updateDoc(doc(db, 'technicians', matchingDoc.id), {
+      await updateDoc(doc(db, matchingDoc.ref.parent.id, matchingDoc.id), {
         password_hash: enteredHash,
         last_login: new Date().toISOString(),
       });
     }
 
-    // 5. Update last_login in Firestore database
-    await updateDoc(doc(db, 'technicians', matchingDoc.id), {
+    await updateDoc(doc(db, matchingDoc.ref.parent.id, matchingDoc.id), {
       last_login: new Date().toISOString(),
     }).catch(() => {});
 
-    // 6. Return sanitized technician (without password_hash) for app session
     const sanitizedTechnician: Technician = {
-      technician_id: String(techData.technician_id || matchingDoc.id),
-      name: techData.name || 'Technician',
+      technician_id: String(techData.technician_id || techData.user_id || matchingDoc.id),
+      name: techData.name || 'User',
       email: techData.email || normalizedEmail,
       role: techData.role || 'Maintenance Specialist',
+      role_id: techData.role_id ? String(techData.role_id) : (techData.role === 'Master Admin' ? 'ROLE_MASTER_ADMIN' : undefined),
       skills: Array.isArray(techData.skills) ? techData.skills : [],
       experience: Number(techData.experience ?? 5),
       shift: techData.shift || 'Day Shift',
@@ -168,14 +167,19 @@ export async function verifySessionWithBackend(): Promise<Technician | null> {
   if (!cachedTech) return null;
 
   try {
-    const techDoc = await getDoc(doc(db, 'technicians', cachedTech.technician_id));
-    if (techDoc.exists()) {
-      const data = techDoc.data();
+    let userDoc = await getDoc(doc(db, 'users', cachedTech.technician_id));
+    if (!userDoc.exists()) {
+      userDoc = await getDoc(doc(db, 'technicians', cachedTech.technician_id));
+    }
+
+    if (userDoc.exists()) {
+      const data = userDoc.data();
       return {
-        technician_id: String(data.technician_id || techDoc.id),
+        technician_id: String(data.technician_id || userDoc.id),
         name: data.name || cachedTech.name,
         email: String(data.email || cachedTech.email),
         role: data.role || cachedTech.role,
+        role_id: data.role_id ? String(data.role_id) : (data.role === 'Master Admin' ? 'ROLE_MASTER_ADMIN' : cachedTech.role_id),
         skills: Array.isArray(data.skills) ? data.skills : cachedTech.skills,
         experience: Number(data.experience ?? cachedTech.experience),
         shift: data.shift || cachedTech.shift,
@@ -184,14 +188,13 @@ export async function verifySessionWithBackend(): Promise<Technician | null> {
       };
     }
   } catch {
-    // If database check is momentary or offline, return cached session
     return cachedTech;
   }
   return cachedTech;
 }
 
 /**
- * Save active technician and bearer token in localStorage (sanitized, no password)
+ * Save active technician/user and bearer token in localStorage
  */
 export function saveActiveTechnicianSession(tech: Technician | null, token?: string | null): void {
   try {
@@ -201,6 +204,7 @@ export function saveActiveTechnicianSession(tech: Technician | null, token?: str
         name: tech.name,
         email: tech.email,
         role: tech.role,
+        role_id: tech.role_id,
         skills: tech.skills,
         experience: tech.experience,
         shift: tech.shift,

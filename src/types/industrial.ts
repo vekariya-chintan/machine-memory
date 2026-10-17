@@ -18,31 +18,31 @@ export interface BaselineMetrics {
   power_baseline_kw: number;
 
   // ISO 10816-3 Vibration Severity Classification
-  iso_standard?: string; // e.g. 'ISO 10816-3:2009'
-  iso_group?: IsoMachineGroup; // Group 1 (>300kW), Group 2 (15-300kW), Group 3 (Pumps with separate driver), Group 4 (Pumps integrated)
-  foundation_type?: FoundationType; // 'rigid' | 'flexible'
-  vibration_zone_a?: number; // Zone A: Newly commissioned / Good (upper limit mm/s RMS)
-  vibration_zone_b?: number; // Zone B: Acceptable for unrestricted continuous operation
-  vibration_zone_c_alert?: number; // Zone C: Alert / Unsatisfactory for long-term operation
-  vibration_zone_d_danger?: number; // Zone D: Danger / Trip threshold
+  iso_standard?: string;
+  iso_group?: IsoMachineGroup;
+  foundation_type?: FoundationType;
+  vibration_zone_a?: number;
+  vibration_zone_b?: number;
+  vibration_zone_c_alert?: number;
+  vibration_zone_d_danger?: number;
 
   iso_zone_a_limit?: number;
   iso_zone_b_limit?: number;
   iso_zone_c_limit?: number;
   iso_zone_d_limit?: number;
 
-  // Asset-Specific Operating Parameters (ISO & Mechanical Operating Baselines)
-  primary_parameter_label?: string; // e.g. 'System Hydraulic Pressure', 'Clamping Force', 'Torsional Backlash', 'Discharge Pressure', 'Rated Voltage'
-  primary_parameter_value?: string | number; // e.g. 210, 18, 0.8, 70, 480
-  primary_parameter_unit?: string; // e.g. 'bar', 'kN', 'arcmin', 'bar', 'V'
+  // Asset-Specific Operating Parameters
+  primary_parameter_label?: string;
+  primary_parameter_value?: string | number;
+  primary_parameter_unit?: string;
 
-  secondary_parameter_label?: string; // e.g. 'Fluid Viscosity Grade', 'Radial Runout Tolerance', 'Gear Mesh Frequency', 'Delivery Flow Rate', 'Power Factor'
-  secondary_parameter_value?: string | number; // e.g. 'ISO VG 46', '0.003', '520', '45', '0.80'
-  secondary_parameter_unit?: string; // e.g. 'cSt', 'mm', 'Hz', 'L/min', 'cos φ'
+  secondary_parameter_label?: string;
+  secondary_parameter_value?: string | number;
+  secondary_parameter_unit?: string;
 
-  tertiary_parameter_label?: string; // e.g. 'Return Line Delta-P', 'Lube Mist Pressure', 'Oil Bath Temperature', 'Filtration Rating', 'Stator Phase Imbalance'
-  tertiary_parameter_value?: string | number; // e.g. '2.2', '2.8', '52.0', '15', '< 1.0'
-  tertiary_parameter_unit?: string; // e.g. 'bar', 'bar', '°C', 'µm', '%'
+  tertiary_parameter_label?: string;
+  tertiary_parameter_value?: string | number;
+  tertiary_parameter_unit?: string;
 }
 
 export interface SubsystemKeyParam {
@@ -62,13 +62,16 @@ export interface Machine {
   name: string;
   model: string;
   subsystem_type?: AssetSubsystemType;
+  subsystem_id?: string;
   location: string;
   manufacturer: string;
   status: 'nominal' | 'warning' | 'critical' | 'maintenance';
   baseline_metrics: BaselineMetrics;
   installed_date: string;
   iso_machine_group?: IsoMachineGroup;
+  iso_group_id?: string;
   foundation_type?: FoundationType;
+  foundation_type_id?: string;
   subsystem_parameters?: SubsystemParameters;
   asset_criticality?: 'CRITICAL_A' | 'IMPORTANT_B' | 'GENERAL_C';
   description?: string;
@@ -131,44 +134,7 @@ export interface RecommendedAction {
   step: number;
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM';
   action: string;
-  tool: string;
-}
-
-export interface KnowledgeItem {
-  knowledge_id: string;
-  machine_id: string;
-  type: 'technician_tip' | 'oem_manual' | 'post_mortem';
-  title: string;
-  content: string;
-  source: string;
-  created_by: string;
-  confidence: number;
-  created_at: string;
-  tags: string[];
-  media?: VerificationMedia;
-}
-
-export interface Technician {
-  technician_id: string;
-  name: string;
-  email: string;
-  password_hash?: string;
-  encrypted_password?: string;
-  role: string;
-  skills: string[];
-  experience: number;
-  shift: string;
-  avatar_url?: string;
-  last_login?: string;
-}
-
-export interface EvidenceItem {
-  evidence_id: string;
-  incident_id: string;
-  type: 'sensor_telemetry' | 'technician_audio' | 'oem_specification' | 'past_incident';
-  source: string;
-  content: string;
-  relevance_score: number;
+  tool?: string;
 }
 
 export interface ExtractionResult {
@@ -176,15 +142,65 @@ export interface ExtractionResult {
   machine_name: string;
   symptoms: string[];
   time_condition: string;
-  warmup_minutes: number;
+  warmup_minutes?: number;
   recommended_inspection: string;
   proscribed_action: string;
-  probable_root_cause: string;
+  probable_root_cause?: string;
   confidence_score: number;
-  source_summary: string;
-  extracted_parameters: {
-    temperature_sensitivity: boolean;
-    rpm_drift: boolean;
-    thermal_expansion_likely: boolean;
+  source_summary?: string;
+  extracted_parameters?: {
+    temperature_sensitivity?: boolean;
+    rpm_drift?: boolean;
+    thermal_expansion_likely?: boolean;
   };
 }
+
+export interface KnowledgeItem {
+  knowledge_id: string;
+  machine_id: string;
+  title: string;
+  content: string;
+  type: string;
+  type_id?: string;
+  knowledge_type_id?: string;
+  author?: string;
+  created_by?: string;
+  source?: string;
+  confidence?: number;
+  confidence_score?: number;
+  created_at: string;
+  verified?: boolean;
+  related_incident_ids?: string[];
+  tags?: string[];
+  media?: any;
+}
+
+export interface EvidenceItem {
+  evidence_id: string;
+  incident_id: string;
+  type: string;
+  source: string;
+  content: string;
+  relevance_score?: number;
+  created_at?: string;
+}
+
+export interface User {
+  technician_id: string;
+  name: string;
+  email: string;
+  role: string;
+  role_id?: string;
+  skills: string[];
+  skill_ids?: string[];
+  experience: number;
+  shift: string;
+  shift_id?: string;
+  avatar_url?: string;
+  last_login?: string;
+  created_at?: string;
+  updated_at?: string;
+  password_hash?: string;
+}
+
+export type Technician = User;

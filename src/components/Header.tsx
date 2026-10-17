@@ -122,8 +122,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-extrabold tracking-wider text-slate-100 text-xs sm:text-sm leading-none flex items-center gap-1">
                   MACHINE<span className="text-cyan-400">MEMORY</span>
                 </span>
-                <span className="text-[9px] font-mono text-cyan-400/95 font-bold tracking-widest uppercase mt-0.5 flex items-center gap-1">
-                  TEAM PROMPT NOVA
+                <span className="text-[9px] font-mono text-cyan-400/95 font-bold tracking-widest mt-0.5 flex items-center gap-1">
+                  By Team PromtNova
                 </span>
               </div>
             </button>
@@ -204,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Primary View Modes Nav (Dashboard vs Investigation vs Memory vs Assets) */}
+        {/* Primary View Modes Nav (Dashboard vs Investigation vs Memory vs Assets vs Users) */}
         <div className="flex items-center py-2 border-b border-slate-900/80 overflow-x-auto scrollbar-none gap-1 sm:gap-2">
           <div className="flex items-center gap-1.5 font-mono text-xs whitespace-nowrap">
             <button
@@ -269,7 +269,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>TECHNICIANS</span>
+              <span>USERS</span>
             </button>
           </div>
         </div>

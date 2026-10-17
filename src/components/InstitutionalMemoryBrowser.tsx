@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Database,
   Search,
@@ -23,7 +23,7 @@ import {
 import { Machine, Incident, KnowledgeItem, VerificationMedia, Technician } from '../types/industrial';
 import { SearchableDropdown } from './SearchableDropdown';
 import { AddKnowledgeModal } from './AddKnowledgeModal';
-import { addKnowledgeToFirestore, fetchKnowledgePage, fetchIncidentsPage, fetchMachinesPage } from '../services/machineMemoryService';
+import { addKnowledgeToFirestore, fetchKnowledgePage, fetchIncidentsPage } from '../services/machineMemoryService';
 import { validateQueryInput } from '../lib/securityValidation';
 import { DocumentSnapshot } from 'firebase/firestore';
 
@@ -42,14 +42,14 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   incidents,
   knowledge: propKnowledge,
   onBackToWalkthrough,
-  activeMachineId = 'M001',
+  activeMachineId = '',
   onKnowledgeUpdated,
   authenticatedTechnician,
 }) => {
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'incidents' | 'machines' | 'query'>('knowledge');
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'incidents' | 'query'>('knowledge');
   const [search, setSearch] = useState('');
   const [selectedAssetFilter, setSelectedAssetFilter] = useState<string>('all');
-  const [aiQuery, setAiQuery] = useState(`What are the recurring failure symptoms and inspection tips for asset ${activeMachineId}?`);
+  const [aiQuery, setAiQuery] = useState(activeMachineId ? `What are the recurring failure symptoms and inspection tips for asset ${activeMachineId}?` : 'What are the recurring failure symptoms and inspection tips for the selected machine?');
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedMediaIncident, setSelectedMediaIncident] = useState<Incident | null>(null);
@@ -57,32 +57,25 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   const [isAddKnowledgeModalOpen, setIsAddKnowledgeModalOpen] = useState(false);
   const [localKnowledge, setLocalKnowledge] = useState<KnowledgeItem[]>(propKnowledge || []);
 
-  // Server-side pagination state for Knowledge tab (10 records per page, latest at top)
+  // Server-side pagination state for Knowledge tab (5 records per page, latest at top)
   const [page, setPage] = useState<number>(1);
   const [pagedKnowledge, setPagedKnowledge] = useState<KnowledgeItem[]>([]);
-  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null | undefined)[]>([null]);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
 
-  // Server-side pagination state for Incidents tab (10 records per page, latest at top)
+  // Server-side pagination state for Incidents tab (5 records per page, latest at top)
   const [incidentPage, setIncidentPage] = useState<number>(1);
   const [pagedTabIncidents, setPagedTabIncidents] = useState<Incident[]>([]);
-  const [incidentPageCursors, setIncidentPageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
+  const [incidentPageCursors, setIncidentPageCursors] = useState<(DocumentSnapshot | null | undefined)[]>([null]);
   const [incidentHasMore, setIncidentHasMore] = useState<boolean>(false);
   const [isIncidentLoadingPage, setIsIncidentLoadingPage] = useState<boolean>(false);
-
-  // Server-side pagination state for Machines tab (12 records per page, latest at top)
-  const [machinePage, setMachinePage] = useState<number>(1);
-  const [pagedMachinesTab, setPagedMachinesTab] = useState<Machine[]>([]);
-  const [machinePageCursors, setMachinePageCursors] = useState<(DocumentSnapshot | null | undefined)[] >([null]);
-  const [machineHasMore, setMachineHasMore] = useState<boolean>(false);
-  const [isMachineLoadingPage, setIsMachineLoadingPage] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
     setIsLoadingPage(true);
     const cursor = pageCursors[page - 1] || null;
-    fetchKnowledgePage(10, cursor)
+    fetchKnowledgePage(5, cursor)
       .then((res) => {
         if (isMounted) {
           setPagedKnowledge(res.knowledge);
@@ -110,7 +103,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
     let isMounted = true;
     setIsIncidentLoadingPage(true);
     const cursor = incidentPageCursors[incidentPage - 1] || null;
-    fetchIncidentsPage(10, cursor)
+    fetchIncidentsPage(5, cursor)
       .then((res) => {
         if (isMounted) {
           setPagedTabIncidents(res.incidents);
@@ -132,49 +125,6 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
       isMounted = false;
     };
   }, [activeTab, incidentPage]);
-
-  useEffect(() => {
-    if (activeTab !== 'machines') return;
-    let isMounted = true;
-    setIsMachineLoadingPage(true);
-    const cursor = machinePageCursors[machinePage - 1] || null;
-    fetchMachinesPage(12, cursor)
-      .then((res) => {
-        if (isMounted) {
-          setPagedMachinesTab(res.machines);
-          setMachineHasMore(res.hasMore);
-          if (res.lastVisible && machinePageCursors.length <= machinePage) {
-            setMachinePageCursors((prev) => {
-              const next = [...prev];
-              next[machinePage] = res.lastVisible;
-              return next;
-            });
-          }
-          setIsMachineLoadingPage(false);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setIsMachineLoadingPage(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab, machinePage]);
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1) return;
-    setPage(newPage);
-  };
-
-  const handleIncidentPageChange = (newPage: number) => {
-    if (newPage < 1) return;
-    setIncidentPage(newPage);
-  };
-
-  const handleMachinePageChange = (newPage: number) => {
-    if (newPage < 1) return;
-    setMachinePage(newPage);
-  };
 
   // Synchronize localKnowledge with parent prop if it changes
   React.useEffect(() => {
@@ -235,48 +185,71 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
     }
   };
 
-  const safePagedKnowledge = (pagedKnowledge || []).filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
-  const safeIncidents = (incidents || []).filter((i): i is Incident => Boolean(i && i.incident_id));
-  const safeMachines = (machines || []).filter((m): m is Machine => Boolean(m && m.machine_id));
+  // Reset pages to 1 whenever filters change
+  useEffect(() => {
+    setPage(1);
+    setIncidentPage(1);
+  }, [search, selectedAssetFilter]);
 
-  const filteredKnowledge = safePagedKnowledge.filter((k) => {
-    const mId = k.machine_id || '';
-    if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      (k.title || '').toLowerCase().includes(q) ||
-      (k.content || '').toLowerCase().includes(q) ||
-      mId.toLowerCase().includes(q)
-    );
-  });
+  const sourceKnowledge = useMemo(() => {
+    return localKnowledge && localKnowledge.length > 0 ? localKnowledge : pagedKnowledge;
+  }, [localKnowledge, pagedKnowledge]);
 
-  const safePagedTabIncidents = (pagedTabIncidents || []).filter((i): i is Incident => Boolean(i && i.incident_id));
-  const filteredIncidents = safePagedTabIncidents.filter((i) => {
-    const mId = i.machine_id || '';
-    if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      (i.incident_id || '').toLowerCase().includes(q) ||
-      (i.cause || '').toLowerCase().includes(q) ||
-      (i.symptom || '').toLowerCase().includes(q) ||
-      mId.toLowerCase().includes(q)
-    );
-  });
+  const sourceTabIncidents = useMemo(() => {
+    return incidents && incidents.length > 0 ? incidents : pagedTabIncidents;
+  }, [incidents, pagedTabIncidents]);
 
-  const safePagedMachinesTab = (pagedMachinesTab || []).filter((m): m is Machine => Boolean(m && m.machine_id));
-  const filteredMachinesTab = safePagedMachinesTab.filter((m) => {
-    const mId = m.machine_id || '';
-    if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      mId.toLowerCase().includes(q) ||
-      (m.name || '').toLowerCase().includes(q) ||
-      (m.location || '').toLowerCase().includes(q)
-    );
-  });
+  const hasActiveFilter = Boolean(search.trim() || selectedAssetFilter !== 'all');
+  const PAGE_SIZE = 5;
+
+  const allFilteredKnowledge = useMemo(() => {
+    return sourceKnowledge.filter((k: KnowledgeItem) => {
+      if (!k) return false;
+      const mId = k.machine_id || '';
+      if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        (k.title || '').toLowerCase().includes(q) ||
+        (k.content || '').toLowerCase().includes(q) ||
+        mId.toLowerCase().includes(q)
+      );
+    });
+  }, [sourceKnowledge, selectedAssetFilter, search]);
+
+  const totalKnowledgePages = Math.max(1, Math.ceil(allFilteredKnowledge.length / PAGE_SIZE));
+  const filteredKnowledge = useMemo(() => {
+    if (hasActiveFilter) {
+      const start = (page - 1) * PAGE_SIZE;
+      return allFilteredKnowledge.slice(start, start + PAGE_SIZE);
+    }
+    return pagedKnowledge;
+  }, [hasActiveFilter, page, allFilteredKnowledge, pagedKnowledge]);
+
+  const allFilteredIncidents = useMemo(() => {
+    return sourceTabIncidents.filter((i: Incident) => {
+      if (!i) return false;
+      const mId = i.machine_id || '';
+      if (selectedAssetFilter !== 'all' && mId !== selectedAssetFilter) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        (i.incident_id || '').toLowerCase().includes(q) ||
+        (i.cause || '').toLowerCase().includes(q) ||
+        (i.symptom || '').toLowerCase().includes(q) ||
+        mId.toLowerCase().includes(q)
+      );
+    });
+  }, [sourceTabIncidents, selectedAssetFilter, search]);
+
+  const totalIncidentPages = Math.max(1, Math.ceil(allFilteredIncidents.length / PAGE_SIZE));
+  const filteredIncidents = useMemo(() => {
+    if (hasActiveFilter) {
+      const start = (incidentPage - 1) * PAGE_SIZE;
+      return allFilteredIncidents.slice(start, start + PAGE_SIZE);
+    }
+    return pagedTabIncidents;
+  }, [hasActiveFilter, incidentPage, allFilteredIncidents, pagedTabIncidents]);
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-6 shadow-xl space-y-6">
@@ -313,16 +286,6 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
             }`}
           >
             INCIDENTS &amp; REPAIRS ({incidents.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('machines')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'machines'
-                ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            FLEET ASSETS ({machines.length})
           </button>
           <button
             onClick={() => setActiveTab('query')}
@@ -417,19 +380,12 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
               <div className="text-sm font-mono text-slate-300 font-bold">No knowledge items match current filters</div>
               <p className="text-xs font-mono text-slate-500 max-w-md mx-auto">
-                No technician tips found for the selected query. Add the first heuristic or reset your search.
+                No technician tips found for the selected query. Try adjusting your search query or filters.
               </p>
-              <button
-                onClick={() => setIsAddKnowledgeModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>ADD NEW KNOWLEDGE &amp; TIP</span>
-              </button>
             </div>
           ) : (
             <>
-              {filteredKnowledge.map((k) => (
+              {filteredKnowledge.map((k: KnowledgeItem) => (
                 <div
                   key={k.knowledge_id}
                   className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 hover:border-slate-700 transition-colors"
@@ -482,9 +438,9 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                   )}
 
                   <div className="flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 pt-1">
-                    <span>Source: <b className="text-slate-300">{k.source}</b></span>
-                    <span>Created by: <b className="text-slate-300">{k.created_by}</b></span>
-                    <span>Confidence: <b className="text-emerald-400">{Math.round(k.confidence * 100)}%</b></span>
+                    <span>Source: <b className="text-slate-300">{k.source || 'Institutional System'}</b></span>
+                    <span>Created by: <b className="text-slate-300">{k.created_by || k.author || 'Technician'}</b></span>
+                    <span>Confidence: <b className="text-emerald-400">{Math.round(((k.confidence ?? k.confidence_score ?? 0.95)) * 100)}%</b></span>
                   </div>
                 </div>
               ))}
@@ -494,19 +450,28 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           {/* Server-side Pagination Controls */}
           <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 mt-4">
             <div>
-              Page <strong className="text-cyan-400">{page}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((propKnowledge || []).length / 10))}</strong>
+              Page <strong className="text-cyan-400">{page}</strong> of{' '}
+              <strong className="text-slate-400">
+                {hasActiveFilter
+                  ? totalKnowledgePages
+                  : Math.max(1, Math.ceil((sourceKnowledge || []).length / PAGE_SIZE))}
+              </strong>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page === 1 || isLoadingPage || (propKnowledge || []).length <= 10}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || isLoadingPage}
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
               >
                 Previous
               </button>
               <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={!hasMore || isLoadingPage || (propKnowledge || []).length <= 10}
+                onClick={() => setPage((p) => p + 1)}
+                disabled={
+                  hasActiveFilter
+                    ? page >= totalKnowledgePages
+                    : !hasMore || isLoadingPage
+                }
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
               >
                 Next
@@ -535,7 +500,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 text-slate-300">
-                {filteredIncidents.map((inc) => (
+                {filteredIncidents.map((inc: Incident) => (
                   <tr key={inc.incident_id} className="hover:bg-slate-900/50">
                     <td className="py-3 px-3 font-bold text-cyan-400 whitespace-nowrap">{inc.incident_id}</td>
                     <td className="py-3 px-3 text-slate-400 whitespace-nowrap">{inc.date}</td>
@@ -572,100 +537,28 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
           {/* Server-side Pagination Controls */}
           <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
             <div>
-              Page <strong className="text-cyan-400">{incidentPage}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((incidents || []).length / 10))}</strong>
+              Page <strong className="text-cyan-400">{incidentPage}</strong> of{' '}
+              <strong className="text-slate-400">
+                {hasActiveFilter
+                  ? totalIncidentPages
+                  : Math.max(1, Math.ceil((sourceTabIncidents || []).length / PAGE_SIZE))}
+              </strong>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => handleIncidentPageChange(incidentPage - 1)}
-                disabled={incidentPage === 1 || isIncidentLoadingPage || (incidents || []).length <= 10}
+                onClick={() => setIncidentPage((p) => Math.max(1, p - 1))}
+                disabled={incidentPage === 1 || isIncidentLoadingPage}
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
               >
                 Previous
               </button>
               <button
-                onClick={() => handleIncidentPageChange(incidentPage + 1)}
-                disabled={!incidentHasMore || isIncidentLoadingPage || (incidents || []).length <= 10}
-                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Plant Machines */}
-      {activeTab === 'machines' && (
-        <div className="space-y-4">
-          {/* Active filter count status */}
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 pb-1 border-t border-slate-800/80 px-1">
-            <span>
-              Showing <strong className="text-slate-200">{filteredMachinesTab.length}</strong> of{' '}
-              <strong className="text-slate-200">{(machines || []).length}</strong> assets
-            </span>
-            <span className="flex items-center gap-1 text-slate-500">
-              <Clock className="w-3 h-3 text-cyan-400" />
-              Sorted by creation date (newest first)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {filteredMachinesTab.map((m) => (
-              <div key={m.machine_id} className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-3 font-mono">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <span className="text-lg font-bold text-cyan-400">{m.machine_id}</span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold ${
-                      m.status === 'nominal'
-                        ? 'bg-emerald-950 border-emerald-800 text-emerald-400'
-                        : 'bg-amber-950 border-amber-800 text-amber-400'
-                    }`}
-                  >
-                    {m.status}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold text-slate-200">{m.name}</div>
-                  <div className="text-xs text-slate-400">{m.model}</div>
-                  <div className="text-[11px] text-slate-500 mt-1">{m.location}</div>
-                </div>
-
-                <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800 text-xs space-y-1">
-                  <div className="text-slate-400 font-bold text-[10px]">BASELINE TELEMETRY LIMITS</div>
-                  <div className="flex justify-between">
-                    <span>ISO Vibration Limit:</span>
-                    <span className="text-amber-400">{m.baseline_metrics?.iso_vibration_limit ?? 2.2} mm/s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Rated Spindle Speed:</span>
-                    <span className="text-slate-200">{m.baseline_metrics?.rated_rpm ?? 3000} RPM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Normal Operating Temp:</span>
-                    <span className="text-cyan-400">{m.baseline_metrics?.normal_temp_c ?? 65}°C</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Server-side Pagination Controls */}
-          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300">
-            <div>
-              Page <strong className="text-cyan-400">{machinePage}</strong> of <strong className="text-slate-400">{Math.max(1, Math.ceil((machines || []).length / 12))}</strong>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleMachinePageChange(machinePage - 1)}
-                disabled={machinePage === 1 || isMachineLoadingPage || (machines || []).length <= 12}
-                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => handleMachinePageChange(machinePage + 1)}
-                disabled={!machineHasMore || isMachineLoadingPage || (machines || []).length <= 12}
+                onClick={() => setIncidentPage((p) => p + 1)}
+                disabled={
+                  hasActiveFilter
+                    ? incidentPage >= totalIncidentPages
+                    : !incidentHasMore || isIncidentLoadingPage
+                }
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 transition-colors cursor-pointer"
               >
                 Next

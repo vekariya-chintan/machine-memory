@@ -28,6 +28,7 @@ import {
   SEED_TECHNICIANS,
   SEED_EVIDENCE,
 } from '../db/seedData';
+import { initializeMasterTables } from './masterDataService';
 
 /**
  * Recursively removes all `undefined` values from an object or array before passing to Firestore setDoc/updateDoc
@@ -160,6 +161,12 @@ export async function initializeFirestoreDatabase(): Promise<{ success: boolean;
   try {
     const machinesCol = collection(db, 'machines');
     await getDocs(machinesCol);
+
+    // Initialize/seed Firebase master collections for dropdown values
+    initializeMasterTables().catch((err) =>
+      console.warn('Non-blocking master tables initialization note:', err)
+    );
+
     return { success: true, seeded: false };
   } catch (error) {
     console.error('Error during database connectivity check:', error);
@@ -197,7 +204,7 @@ export function getMachineDataset(machineId: string, machine?: Machine) {
  * Reflects the extracted machine asset, warmup timing, vibration anomaly, and thermal parameters.
  */
 export function generateTelemetryFromExtraction(extraction: ExtractionResult, machine?: Machine) {
-  const machineId = extraction.machine_id || machine?.machine_id || 'M001';
+  const machineId = extraction.machine_id || machine?.machine_id || '';
   const normTemp = machine?.baseline_metrics?.normal_temp_c ?? 42.0;
   const isoVib = machine?.baseline_metrics?.iso_vibration_limit ?? 2.2;
   const normVib = machine?.baseline_metrics?.normal_vibration_mms ?? 1.1;
@@ -370,7 +377,7 @@ export async function fetchIncidents(): Promise<Incident[]> {
           return {
             incident_id: incidentId,
             date: data.date || new Date().toISOString().split('T')[0],
-            machine_id: String(data.machine_id || 'M001'),
+            machine_id: String(data.machine_id || ''),
             symptom: data.symptom || 'Vibration onset after warmup',
             cause: data.cause || 'Mechanical misalignment',
             repair: data.repair || 'Targeted component realign / replacement',
@@ -410,7 +417,7 @@ export async function fetchKnowledge(): Promise<KnowledgeItem[]> {
 
           return {
             knowledge_id: knowledgeId,
-            machine_id: String(data.machine_id || 'M001'),
+            machine_id: String(data.machine_id || ''),
             type: data.type || 'technician_tip',
             title: data.title || 'Operational Heuristic',
             content: data.content || '',
@@ -631,7 +638,7 @@ export async function addEvidenceToFirestore(item: EvidenceItem): Promise<Eviden
 /**
  * Server-side paginated fetch for Incident Investigations (10 per page, latest at top)
  */
-export async function fetchIncidentsPage(pageSize = 10, lastDoc?: DocumentSnapshot | null): Promise<{
+export async function fetchIncidentsPage(pageSize = 5, lastDoc?: DocumentSnapshot | null): Promise<{
   incidents: Incident[];
   lastVisible: DocumentSnapshot | null;
   hasMore: boolean;
@@ -658,7 +665,7 @@ export async function fetchIncidentsPage(pageSize = 10, lastDoc?: DocumentSnapsh
         return {
           incident_id: incidentId,
           date: data.date || new Date().toISOString().split('T')[0],
-          machine_id: String(data.machine_id || 'M001'),
+          machine_id: String(data.machine_id || ''),
           symptom: data.symptom || 'Vibration onset after warmup',
           cause: data.cause || 'Mechanical misalignment',
           repair: data.repair || 'Targeted component realign / replacement',
@@ -688,7 +695,7 @@ export async function fetchMachinesPage(pageSize = 10, lastDoc?: DocumentSnapsho
   hasMore: boolean;
 }> {
   try {
-    const constraints: any[] = [orderBy('installed_date', 'desc'), limit(pageSize + 1)];
+    const constraints: any[] = [orderBy('machine_id', 'asc'), limit(pageSize + 1)];
     if (lastDoc) {
       constraints.push(startAfter(lastDoc));
     }
@@ -746,7 +753,7 @@ export async function fetchMachinesPage(pageSize = 10, lastDoc?: DocumentSnapsho
 /**
  * Server-side paginated fetch for Institutional Memory / Knowledge Items (10 per page, latest at top)
  */
-export async function fetchKnowledgePage(pageSize = 10, lastDoc?: DocumentSnapshot | null): Promise<{
+export async function fetchKnowledgePage(pageSize = 5, lastDoc?: DocumentSnapshot | null): Promise<{
   knowledge: KnowledgeItem[];
   lastVisible: DocumentSnapshot | null;
   hasMore: boolean;
@@ -772,7 +779,7 @@ export async function fetchKnowledgePage(pageSize = 10, lastDoc?: DocumentSnapsh
 
         return {
           knowledge_id: knowledgeId,
-          machine_id: String(data.machine_id || 'M001'),
+          machine_id: String(data.machine_id || ''),
           type: data.type || 'technician_tip',
           title: data.title || 'Operational Heuristic',
           content: data.content || '',
