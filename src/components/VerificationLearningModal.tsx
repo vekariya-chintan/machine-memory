@@ -425,7 +425,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               <span className="text-emerald-400 text-[11px]">Used for Future Investigations</span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {/* Pillar A: Audio Recording & Upload Option */}
               <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono">
@@ -555,7 +555,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                 <button
                   type="button"
                   onClick={onBack}
-                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0 whitespace-nowrap"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>BACK</span>
@@ -564,7 +564,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               <button
                 onClick={handleCommit}
                 disabled={isSubmitting}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50 cursor-pointer"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50 cursor-pointer whitespace-nowrap"
               >
                 <Database className="w-4 h-4 text-slate-950" />
                 <span>{isSubmitting ? 'SAVING MEMORY...' : 'SAVE & CLOSE INVESTIGATION'}</span>
@@ -596,7 +596,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
           </div>
 
           {/* Stored Incident Details */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
             <div className="bg-slate-900/80 p-3 rounded border border-slate-800">
               <span className="text-slate-500 block mb-1">LOGGED ASSET</span>
               <span className="text-cyan-400 font-bold text-sm">{currentAssetId}</span>
@@ -622,7 +622,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               <span className="text-slate-400">Available across all shifts</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {/* Photo Evidence Display */}
               <div className="space-y-2">
                 <span className="text-[11px] font-mono text-slate-400 font-bold flex items-center gap-1">

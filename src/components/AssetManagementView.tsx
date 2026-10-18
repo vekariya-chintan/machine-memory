@@ -412,7 +412,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
               <Cpu className="w-6 h-6 text-cyan-400" />
               <span>Plant Asset Management</span>
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl text-justify">
               Configure baseline operating thresholds according to ISO 10816-3. Specifications differ across subsystems (Hydraulic Pump, Precision Gearbox, CNC Spindle, Coolant Delivery, Power Generator).
             </p>
           </div>
@@ -429,7 +429,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
         </div>
 
         {/* Fleet KPI Overview Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 mt-5">
           <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
             <div className="text-[10px] font-mono text-slate-400 uppercase">Registered Assets</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100 mt-1">
@@ -586,12 +586,12 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                 }`}
               >
                 {/* Top Row: Identification, Status, and Action Buttons */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-slate-800/80">
-                  <div className="flex items-start gap-3">
-                    <div className="px-2.5 py-1.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-400 font-mono font-bold text-sm tracking-wide">
+                <div className="flex flex-col items-start gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex flex-col sm:flex-row items-start gap-3 w-full">
+                    <div className="px-2.5 py-1.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-400 font-mono font-bold text-sm tracking-wide shrink-0">
                       {m.machine_id}
                     </div>
-                    <div>
+                    <div className="flex-1 w-full">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base sm:text-lg font-bold text-slate-100">{m.name}</h2>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${badge.color}`}>
@@ -609,23 +609,21 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
                           {m.status?.toUpperCase() || 'NOMINAL'}
                         </span>
                       </div>
-                      <div className="text-xs font-mono text-slate-400 mt-1 flex flex-wrap items-center gap-3">
+                      <div className="text-xs font-mono text-slate-400 mt-1 flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-1 sm:gap-3">
                         <span>MODEL: <strong className="text-slate-300">{m.model}</strong></span>
-                        <span>·</span>
                         <span>OEM: <strong className="text-slate-300">{m.manufacturer}</strong></span>
-                        <span>·</span>
                         <span>LOCATION: <strong className="text-slate-300">{m.location}</strong></span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                     <button
                       onClick={() => {
                         onSelectMachineId(m.machine_id);
                         onStartInvestigation(m.machine_id);
                       }}
-                      className="px-3 py-1.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors cursor-pointer flex-1 justify-center"
                       title="Investigate incident for this machine"
                     >
                       <Radio className="w-3.5 h-3.5 text-cyan-400" />

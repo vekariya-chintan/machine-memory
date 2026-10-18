@@ -417,22 +417,24 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
                   key={k.knowledge_id}
                   className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 hover:border-slate-700 transition-colors"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-start justify-between pb-2 border-b border-slate-800/80 gap-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
                       <span className="font-bold text-sm text-cyan-300 font-mono">{k.title}</span>
-                      <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                        {k.knowledge_id}
-                      </span>
-                      <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
-                        {k.type.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                         <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 shrink-0">
+                           {k.knowledge_id}
+                         </span>
+                         <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800 shrink-0">
+                           {k.type.toUpperCase()}
+                         </span>
+                      </div>
                     </div>
-                    <div className="text-xs font-mono text-slate-400">
+                    <div className="text-xs font-mono text-slate-400 self-start">
                       Target Asset: <span className="text-slate-200 font-bold">{k.machine_id}</span>
                     </div>
                   </div>
 
-                  <p className="text-xs font-mono text-slate-300 leading-relaxed bg-slate-900/40 p-3 rounded border border-slate-800">
+                  <p className="text-xs font-mono text-slate-300 leading-relaxed bg-slate-900/40 p-3 rounded border border-slate-800 text-justify">
                     {k.content}
                   </p>
 

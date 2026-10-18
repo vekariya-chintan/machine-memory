@@ -704,7 +704,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
       )}
 
       {/* Main Grid: Left Column (Audio Recording & Upload & Playback) vs Right Column (Audio to Text / Edit Text Field) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
         {/* Left Column: AUDIO RECORDING, UPLOAD AUDIO & PLAY RECORDED/UPLOADED AUDIO */}
         <div className="lg:col-span-6 space-y-4">
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-5 relative overflow-hidden space-y-4">
@@ -868,7 +868,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
         </div>
 
         {/* Right Column: 4. AUDIO TO TEXT FIELD (WHERE USER CAN EDIT / TYPE DIRECT TEXT) */}
-        <div className="lg:col-span-6 flex flex-col justify-between space-y-4">
+        <div className="sm:col-span-12 lg:col-span-6 flex flex-col justify-between space-y-4">
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-5 h-full flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-2 text-xs font-mono">
@@ -1021,8 +1021,8 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
 
         {/* CSV Preview or Empty State */}
         {csvRows.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs font-mono">
-            <div className="lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-lg p-3 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 text-xs font-mono">
+            <div className="sm:col-span-12 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-lg p-3 space-y-2">
               <div className="text-slate-400 text-[11px] uppercase tracking-wider flex items-center justify-between">
                 <span>ATTACHED TELEMETRY FILE:</span>
                 <span className="text-emerald-400 font-bold">{csvRows.length} ROWS</span>
@@ -1038,7 +1038,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
               </div>
             </div>
 
-            <div className="lg:col-span-8 overflow-x-auto bg-slate-900/50 border border-slate-800 rounded-lg p-2">
+            <div className="sm:col-span-12 lg:col-span-8 overflow-x-auto bg-slate-900/50 border border-slate-800 rounded-lg p-2">
               <table className="w-full text-left text-[11px] font-mono">
                 <thead className="text-slate-400 border-b border-slate-800 pb-1">
                   <tr>
@@ -1111,7 +1111,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
               <button
                 type="button"
                 onClick={onProceed}
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer shrink-0"
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer shrink-0 whitespace-nowrap"
                 title="Proceed to view extracted facts"
               >
                 <span>PROCEED TO FACT EXTRACTION</span>
@@ -1121,7 +1121,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
               <button
                 onClick={handleExtract}
                 disabled={!hasStep1Data || isExtracting}
-                className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-lg font-bold text-xs font-mono transition-all shrink-0 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-lg font-bold text-xs font-mono transition-all shrink-0 whitespace-nowrap ${
                   hasStep1Data && !isExtracting
                     ? 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer'
                     : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'

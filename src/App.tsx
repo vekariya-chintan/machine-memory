@@ -715,7 +715,7 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <button
                     onClick={() => setInvestigationSubView('list')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold transition-colors shadow-sm cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                     title="Return to the full list of all investigations"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />

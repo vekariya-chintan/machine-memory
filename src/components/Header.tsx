@@ -353,7 +353,7 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}
                       >
                         <span className="text-slate-400 shrink-0">{step.icon}</span>
-                        <span>
+                        <span className="whitespace-nowrap">
                           {idx + 1}. <span className="hidden xl:inline">{step.label}</span>
                           <span className="xl:hidden">{step.shortLabel}</span>
                         </span>

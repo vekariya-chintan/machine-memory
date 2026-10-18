@@ -180,7 +180,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
   const verifiedCount = pagedIncidents.filter((i) => i.status === 'verified' || i.status === 'resolved').length;
   const inProgressCount = pagedIncidents.filter((i) => i.status === 'investigating').length;
   const totalDowntimeMinutes = pagedIncidents.reduce((sum, i) => sum + (i.downtime || 0), 0);
-  const mediaCount = pagedIncidents.filter((i) => Boolean(i.verification_media)).length;
+  const mediaCount = pagedIncidents.filter((i) => Boolean(i.verification_media && ((i.verification_media.photos && i.verification_media.photos.length > 0) || i.verification_media.video_url || i.verification_media.audio_url))).length;
 
   return (
     <div className="space-y-6">
@@ -202,7 +202,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
               Machinery Incident Investigations
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl mt-1 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl mt-1 leading-relaxed text-justify">
               Complete historical record of all plant diagnostic investigations, automated root-cause analyses, and verified failure resolutions across the manufacturing cell. Select any investigation to review the workflow or start a new investigation.
             </p>
           </div>
@@ -212,7 +212,7 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-extrabold font-mono text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
-            <span>New Incident Investigation</span>
+            <span className="whitespace-nowrap">New Incident Investigation</span>
           </button>
         </div>
 
@@ -349,7 +349,12 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
         <div className="space-y-3">
           {filteredIncidents.map((inc, index) => {
             const machine = machineMap[inc.machine_id];
-            const hasMedia = Boolean(inc.verification_media);
+            const hasMedia = Boolean(
+              inc.verification_media &&
+              ((inc.verification_media.photos && inc.verification_media.photos.length > 0) ||
+                inc.verification_media.video_url ||
+                inc.verification_media.audio_url)
+            );
             const isLatest = index === 0;
 
             return (

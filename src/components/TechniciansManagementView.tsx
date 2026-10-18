@@ -443,30 +443,30 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
                 >
                   <div className="space-y-4">
                     {/* Top card row: Name, Avatar, ID, Action Buttons */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-3 w-full">
+                      <div className="flex items-start gap-3 w-full">
                         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-900/80 to-slate-800 border border-cyan-800/60 flex items-center justify-center text-cyan-300 font-mono font-bold text-sm shadow-inner shrink-0">
                           {initials || 'US'}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="flex-1 w-full">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                             <h2 className="text-base font-bold text-slate-100 leading-snug">
                               {tech.name}
                             </h2>
                             {isSelf && (
-                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60 shrink-0 self-start">
                                 YOU
                               </span>
                             )}
                           </div>
-                          <span className="text-xs font-medium text-cyan-400">
+                          <span className="text-xs font-medium text-cyan-400 block mt-0.5">
                             {tech.role}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto w-full sm:w-auto">
+                        <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 flex-1 sm:flex-none text-center">
                           {tech.technician_id}
                         </span>
 

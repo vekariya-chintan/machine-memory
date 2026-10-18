@@ -393,7 +393,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-tight">
                 Automated Manufacturing Cell Machinery Fleet
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed text-justify">
                 Displaying aggregate operations across all 5 subsystems of the automated CNC production line: Main Electrospindle, Hydraulic Power Unit, Planetary Rotary Gearbox, Through-Spindle Coolant Delivery, and Standby Diesel Generator. Click any asset below or select from the dropdown to view its individual operating data.
               </p>
             </div>
@@ -483,16 +483,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ========================================================================= */}
       {isAllAssetsMode ? (
         /* GENERAL ALL ASSETS KPIS */
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
           {/* Monitored Fleet */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <Cpu className="w-4 h-4 text-cyan-400" />
                 MONITORED FLEET
               </span>
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ${
                   warningCount > 0
                     ? 'bg-amber-950/60 border-amber-800/80 text-amber-400'
                     : 'bg-emerald-950/60 border-emerald-800/80 text-emerald-400'
@@ -513,11 +513,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Combined Plant Power */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <Zap className="w-4 h-4 text-amber-400" />
                 TOTAL ACTIVE LOAD
               </span>
-              <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/80">
+              <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/80 whitespace-nowrap shrink-0">
                 PRODUCTION
               </span>
             </div>
@@ -533,7 +533,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Average ISO 10816-3 Vibration */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <Gauge className="w-4 h-4 text-cyan-400" />
                 AVG ISO VIBRATION
               </span>
@@ -553,7 +553,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Institutional Knowledge Records */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <BrainCircuit className="w-4 h-4 text-purple-400" />
                 PLANT MEMORY
               </span>
@@ -572,7 +572,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       ) : (
         /* PARTICULAR ASSET SPECIFIC METRIC CARDS */
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
           {/* Baseline Vibration */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-400">

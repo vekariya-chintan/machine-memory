@@ -124,7 +124,7 @@ export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
           <h2 className="text-xl font-bold text-slate-100">
             Diagnostic Investigation &amp; Root-Cause Explanation for Asset {targetAssetId}
           </h2>
-          <p className="text-xs text-slate-400 font-sans mt-0.5">
+          <p className="text-xs text-slate-400 font-sans mt-0.5 text-justify">
             Diagnostic engine compares current telemetry evidence with historical {targetAssetId} incidents and institutional memory, predicting the likely root cause, confidence score, evidence chain, and recommended inspection protocol.
           </p>
         </div>
@@ -161,7 +161,7 @@ export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
             <span className="text-amber-400 font-bold block mb-1">
               ENGINEERING GROUNDING (WHY ALTERNATIVE CAUSES RULED OUT):
             </span>
-            <p className="text-slate-300 leading-relaxed">
+            <p className="text-slate-300 leading-relaxed text-justify">
               {topHypothesis.why_not_bearing || topHypothesis.why_not_alternative}
             </p>
           </div>

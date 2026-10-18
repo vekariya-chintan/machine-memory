@@ -18,6 +18,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Incident, KnowledgeItem, ExtractionResult } from '../types/industrial';
+import { ShaftRunoutVideoViewer } from './ShaftRunoutVideoViewer';
+import { VoiceMemoAudioViewer } from './VoiceMemoAudioViewer';
 
 interface MemoryRetrievalMatrixProps {
   incidents: Incident[];
@@ -41,6 +43,8 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
   const [filter, setFilter] = useState<'all' | 'incidents' | 'tips' | 'manual' | 'history'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhotoModal, setSelectedPhotoModal] = useState<string | null>(null);
+  const [selectedVideoModal, setSelectedVideoModal] = useState<{ url: string; assetId: string; note?: string } | null>(null);
+  const [selectedAudioModal, setSelectedAudioModal] = useState<{ url: string; assetId: string; note?: string } | null>(null);
 
   const currentAssetId = extraction?.machine_id || activeMachineId || 'M001';
 
@@ -355,31 +359,52 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
                 </div>
               </div>
 
-              <p className="text-xs sm:text-sm font-mono text-slate-200 bg-slate-900/60 p-3 rounded border border-slate-800 leading-relaxed">
+              <p className="text-xs sm:text-sm font-mono text-slate-200 bg-slate-900/60 p-3 rounded border border-slate-800 leading-relaxed text-justify">
                 "{k.content}"
               </p>
 
               {/* Verified Media Attachments if available */}
-              {k.media && (
+              {Boolean(
+                k.media &&
+                ((k.media.photos && k.media.photos.length > 0) || k.media.video_url || k.media.audio_url)
+              ) && (
                 <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-900 text-xs font-mono">
                   <span className="text-slate-500 text-[11px]">ATTACHED VERIFICATION MEDIA:</span>
                   {k.media.photos && k.media.photos.length > 0 && (
-                    <span className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const photoUrl = typeof k.media.photos[0] === 'string' ? k.media.photos[0] : k.media.photos[0]?.url;
+                        if (photoUrl) setSelectedPhotoModal(photoUrl);
+                      }}
+                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="View Verified Photos"
+                    >
                       <Camera className="w-3 h-3" />
-                      {k.media.photos.length} Verified Photos
-                    </span>
+                      {k.media.photos.length} Verified {k.media.photos.length === 1 ? 'Photo' : 'Photos'}
+                    </button>
                   )}
                   {k.media.video_url && (
-                    <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVideoModal({ url: k.media.video_url, assetId: k.machine_id, note: k.media.video_note })}
+                      className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 hover:bg-purple-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="Play Shaft Runout Video"
+                    >
                       <Video className="w-3 h-3" />
                       Shaft Runout Video
-                    </span>
+                    </button>
                   )}
                   {k.media.audio_url && (
-                    <span className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/70 text-emerald-300 flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAudioModal({ url: k.media.audio_url, assetId: k.machine_id, note: k.media.audio_note })}
+                      className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/70 text-emerald-300 hover:bg-emerald-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="Listen to Technician Voice Note"
+                    >
                       <Mic className="w-3 h-3" />
                       Technician Voice Note
-                    </span>
+                    </button>
                   )}
                 </div>
               )}
@@ -461,29 +486,49 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
               )}
 
               {/* Verified Media if available on the incident */}
-              {inc.verification_media && (
+              {inc.verification_media &&
+                ((inc.verification_media.photos && inc.verification_media.photos.length > 0) ||
+                  inc.verification_media.video_url ||
+                  inc.verification_media.audio_url) && (
                 <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-900 text-xs font-mono">
                   <span className="text-slate-500 text-[11px]">FIELD VERIFICATION PROOF:</span>
                   {inc.verification_media.photos && inc.verification_media.photos.length > 0 && (
                     <button
-                      onClick={() => setSelectedPhotoModal(inc.verification_media?.photos?.[0]?.url || null)}
-                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors"
+                      type="button"
+                      onClick={() => {
+                        const photoUrl = typeof inc.verification_media?.photos?.[0] === 'string'
+                          ? inc.verification_media.photos[0]
+                          : inc.verification_media?.photos?.[0]?.url;
+                        if (photoUrl) setSelectedPhotoModal(photoUrl);
+                      }}
+                      className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="View Verified Photos"
                     >
                       <Camera className="w-3 h-3" />
-                      View {inc.verification_media.photos.length} Verified Photos
+                      View {inc.verification_media.photos.length} Verified {inc.verification_media.photos.length === 1 ? 'Photo' : 'Photos'}
                     </button>
                   )}
                   {inc.verification_media.video_url && (
-                    <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVideoModal({ url: inc.verification_media!.video_url!, assetId: inc.machine_id, note: inc.verification_media?.video_note })}
+                      className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 hover:bg-purple-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="Play Shaft Runout Video"
+                    >
                       <Video className="w-3 h-3" />
                       Runout Inspection Video
-                    </span>
+                    </button>
                   )}
                   {inc.verification_media.audio_url && (
-                    <span className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/70 text-emerald-300 flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAudioModal({ url: inc.verification_media!.audio_url!, assetId: inc.machine_id, note: inc.verification_media?.audio_note })}
+                      className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/70 text-emerald-300 hover:bg-emerald-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                      title="Listen to Field Audio Note"
+                    >
                       <Mic className="w-3 h-3" />
                       Recorded Field Audio Note
-                    </span>
+                    </button>
                   )}
                 </div>
               )}
@@ -548,6 +593,58 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
             <p className="text-xs font-mono text-slate-300">
               High-resolution shop floor inspection evidence confirming coupling jaw degradation and shaft alignment runout.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Video Lightbox Modal */}
+      {selectedVideoModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-w-lg w-full space-y-3 font-mono">
+            <div className="flex items-center justify-between text-xs text-slate-300 border-b border-slate-800 pb-2">
+              <span className="font-bold flex items-center gap-1.5 text-cyan-400">
+                <Video className="w-4 h-4" />
+                VERIFIED SHAFT RUNOUT VIDEO ({selectedVideoModal.assetId})
+              </span>
+              <button
+                onClick={() => setSelectedVideoModal(null)}
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
+              >
+                ✕ CLOSE
+              </button>
+            </div>
+            <ShaftRunoutVideoViewer
+              videoUrl={selectedVideoModal.url}
+              videoNote={selectedVideoModal.note}
+              assetId={selectedVideoModal.assetId}
+              isReadOnly={true}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Audio Lightbox Modal */}
+      {selectedAudioModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-w-lg w-full space-y-3 font-mono">
+            <div className="flex items-center justify-between text-xs text-slate-300 border-b border-slate-800 pb-2">
+              <span className="font-bold flex items-center gap-1.5 text-emerald-400">
+                <Mic className="w-4 h-4" />
+                VERIFIED TECHNICIAN VOICE MEMO ({selectedAudioModal.assetId})
+              </span>
+              <button
+                onClick={() => setSelectedAudioModal(null)}
+                className="text-slate-400 hover:text-slate-100 px-2 py-0.5 rounded bg-slate-800 cursor-pointer"
+              >
+                ✕ CLOSE
+              </button>
+            </div>
+            <VoiceMemoAudioViewer
+              audioUrl={selectedAudioModal.url}
+              audioNote={selectedAudioModal.note}
+              assetId={selectedAudioModal.assetId}
+              isReadOnly={true}
+            />
           </div>
         </div>
       )}
