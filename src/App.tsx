@@ -609,7 +609,8 @@ export default function App() {
                   {classifiedError.title}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-200 max-w-3xl leading-relaxed font-sans">
-                  {classifiedError.message} Local fallback data and offline local storage have been disabled.
+                  {classifiedError.message}
+                  {classifiedError.title !== 'Quota Limit Exceeded' && ' Local fallback data and offline local storage have been disabled.'}
                 </p>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-[11px] font-mono text-slate-300 pt-1">
                   <span className="text-cyan-300 font-semibold">Action:</span>

@@ -201,6 +201,19 @@ export function classifyFirestoreError(error: unknown): ClassifiedFirestoreError
     lowerMsg.includes('fetch failed') ||
     lowerMsg.includes('failed-precondition');
 
+  const isQuota = lowerMsg.includes('quota') || lowerMsg.includes('resource-exhausted');
+
+  if (isQuota) {
+    return {
+      type: 'other',
+      title: 'Quota Limit Exceeded',
+      message: 'Quota limit exceeded.',
+      resolution: 'Please contact an administrator or enable billing for this project.',
+      details: code ? `[${code}] ${msg}` : msg,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+  }
+
   if (isPermission) {
     return {
       type: 'permission_denied',

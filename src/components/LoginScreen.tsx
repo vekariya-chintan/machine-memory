@@ -6,6 +6,7 @@ import {
   ensureTechniciansTablePopulated,
 } from '../services/authService';
 import { Technician } from '../types/industrial';
+import { classifyFirestoreError } from '../lib/firebase';
 
 interface LoginScreenProps {
   onLoginSuccess: (technician: Technician) => void;
@@ -46,7 +47,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setErrorMessage(result.error || 'Invalid email or password.');
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Authentication failed. Please try again.');
+      const classified = classifyFirestoreError(err);
+      if (classified.title === 'Quota Limit Exceeded') {
+        setErrorMessage('Quota limit exceeded.');
+      } else {
+        setErrorMessage(err?.message || 'Authentication failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
