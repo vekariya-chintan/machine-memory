@@ -60,10 +60,102 @@ const getAiClient = () => {
   });
 };
 
+// ==========================================
+// AI REQUEST BUDGET + RESPONSE CACHE
+// The Gemini free tier is bound by requests-per-day rather than tokens, so
+// identical payloads are replayed from cache and a reserve of the daily
+// allowance is held back for live repository queries.
+// ==========================================
+const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 20);
+const AI_QUERY_RESERVE = Number(process.env.AI_QUERY_RESERVE || 5);
+const AI_CACHE_FILE = path.join(__dirname, 'data', 'ai-cache.json');
+
+interface CachedAiEntry {
+  payload: any;
+  storedAt: string;
+}
+
+const aiCache = new Map<string, CachedAiEntry>();
+let aiUsageDay = new Date().toISOString().slice(0, 10);
+let aiUsageCount = 0;
+
+// Warm the cache from disk so repeated demo runs survive a server restart
+try {
+  if (fs.existsSync(AI_CACHE_FILE)) {
+    const storedCache = JSON.parse(fs.readFileSync(AI_CACHE_FILE, 'utf-8')) || {};
+    for (const [key, value] of Object.entries(storedCache)) {
+      aiCache.set(key, value as CachedAiEntry);
+    }
+  }
+} catch (err) {
+  console.warn('AI cache load skipped:', err);
+}
+
+const persistAiCache = () => {
+  try {
+    fs.mkdirSync(path.dirname(AI_CACHE_FILE), { recursive: true });
+    fs.writeFileSync(AI_CACHE_FILE, JSON.stringify(Object.fromEntries(aiCache), null, 2));
+  } catch (err) {
+    console.warn('AI cache persist skipped:', err);
+  }
+};
+
+const buildCacheKey = (scope: string, payload: unknown): string =>
+  crypto.createHash('sha256').update(`${scope}:${JSON.stringify(payload)}`).digest('hex');
+
+const readAiCache = (key: string): any | null => aiCache.get(key)?.payload ?? null;
+
+const writeAiCache = (key: string, payload: any) => {
+  aiCache.set(key, { payload, storedAt: new Date().toISOString() });
+  persistAiCache();
+};
+
+const rollAiUsageDay = () => {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== aiUsageDay) {
+    aiUsageDay = today;
+    aiUsageCount = 0;
+  }
+};
+
+// Extraction stops at the reserve line; repository queries may spend the full allowance
+const hasAiBudget = (reserved = false): boolean => {
+  rollAiUsageDay();
+  const ceiling = reserved ? AI_DAILY_LIMIT : AI_DAILY_LIMIT - AI_QUERY_RESERVE;
+  return aiUsageCount < ceiling;
+};
+
+const recordAiCall = () => {
+  rollAiUsageDay();
+  aiUsageCount += 1;
+};
+
+// Live quota telemetry so the console can pace itself during a session
+app.get('/api/intelligence/usage', (_req: Request, res: Response) => {
+  rollAiUsageDay();
+  res.json({
+    success: true,
+    day: aiUsageDay,
+    used: aiUsageCount,
+    limit: AI_DAILY_LIMIT,
+    reserve: AI_QUERY_RESERVE,
+    remaining: Math.max(0, AI_DAILY_LIMIT - aiUsageCount),
+    cachedResponses: aiCache.size,
+  });
+});
+
+
 // Handler for Extract Audio / Text - Strict AI Dependency
 const handleExtract = async (req: Request, res: Response) => {
   try {
-    const { audioBase64, mimeType = 'audio/webm', rawText, machineIdDefault = '' } = req.body || {};
+    const {
+      audioBase64,
+      mimeType = 'audio/webm',
+      rawText,
+      machineIdDefault = '',
+      knowledgeEntries = [],
+      incidents = [],
+    } = req.body || {};
 
     const cleanRawText = typeof rawText === 'string' ? rawText.trim() : '';
     const cleanMachineId = typeof machineIdDefault === 'string' ? machineIdDefault.trim().toUpperCase() : '';
@@ -99,8 +191,15 @@ Extract structured machine fault data from audio/text into JSON:
     "temperature_sensitivity": boolean,
     "rpm_drift": boolean,
     "thermal_expansion_likely": boolean
-  }
-}`;
+  },
+  "institutional_answer": string
+}
+
+For "institutional_answer", write a concise authoritative paragraph answering what a
+technician would ask next about this asset - whether the fault has occurred before,
+what resolved it, and which ISO 10816-3 limits apply - citing specific past incident
+IDs and technician rules from the supplied repository context. Return an empty string
+when no repository context is supplied.`;
 
     const parts: any[] = [];
     if (audioBase64 && typeof audioBase64 === 'string') {
@@ -118,8 +217,38 @@ Extract structured machine fault data from audio/text into JSON:
       parts.push({ text: `Technician Field Note for asset ${cleanMachineId}: "${cleanRawText}"` });
     }
 
+    // Repository context travels with the extraction so the institutional answer
+    // is produced in the same call instead of a second round trip
+    const contextIncidents = Array.isArray(incidents) ? incidents.slice(0, 8) : [];
+    const contextKnowledge = Array.isArray(knowledgeEntries) ? knowledgeEntries.slice(0, 10) : [];
+    if (parts.length > 0 && (contextIncidents.length > 0 || contextKnowledge.length > 0)) {
+      parts.push({
+        text: `Verified Incidents: ${JSON.stringify(contextIncidents)}\nField Knowledge: ${JSON.stringify(contextKnowledge)}`,
+      });
+    }
+
     if (parts.length === 0) {
       return res.status(400).json({ success: false, error: 'No audio or text content provided for extraction.' });
+    }
+
+    const extractCacheKey = buildCacheKey('extract', {
+      audio: audioBase64 ? crypto.createHash('sha256').update(audioBase64).digest('hex') : '',
+      rawText: cleanRawText,
+      machineId: cleanMachineId,
+      incidents: contextIncidents,
+      knowledge: contextKnowledge,
+    });
+
+    const cachedExtract = readAiCache(extractCacheKey);
+    if (cachedExtract) {
+      return res.json({ success: true, data: cachedExtract, cached: true });
+    }
+
+    if (!hasAiBudget()) {
+      return res.status(429).json({
+        success: false,
+        error: `Daily AI extraction allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Previously analysed observations remain available from cache.`,
+      });
     }
 
     const response = await client.models.generateContent({
@@ -130,9 +259,11 @@ Extract structured machine fault data from audio/text into JSON:
         responseMimeType: 'application/json',
       },
     });
+    recordAiCall();
 
     const parsed = JSON.parse(response.text || '{}');
-    return res.json({ success: true, data: parsed });
+    writeAiCache(extractCacheKey, parsed);
+    return res.json({ success: true, data: parsed, cached: false });
   } catch (err: any) {
     console.error('Audio extraction error:', err);
     return res.status(502).json({ success: false, error: `AI service extraction failed: ${err.message || 'Unknown error'}` });
@@ -183,6 +314,25 @@ Current Telemetry: ${JSON.stringify(sensorSnapshot || incident, null, 2)}
 Historical Incidents: ${JSON.stringify(historicalIncidents || [], null, 2)}
 Institutional Knowledge: ${JSON.stringify(knowledgeEntries || [], null, 2)}`;
 
+    const investigateCacheKey = buildCacheKey('investigate', {
+      machineId: targetMachId,
+      snapshot: sensorSnapshot || incident || null,
+      historicalIncidents: historicalIncidents || [],
+      knowledgeEntries: knowledgeEntries || [],
+    });
+
+    const cachedInvestigation = readAiCache(investigateCacheKey);
+    if (cachedInvestigation) {
+      return res.json({ success: true, data: cachedInvestigation, cached: true });
+    }
+
+    if (!hasAiBudget()) {
+      return res.status(429).json({
+        success: false,
+        error: `Daily AI investigation allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Cached investigations remain available.`,
+      });
+    }
+
     const response = await client.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: prompt,
@@ -191,9 +341,11 @@ Institutional Knowledge: ${JSON.stringify(knowledgeEntries || [], null, 2)}`;
         responseMimeType: 'application/json',
       },
     });
+    recordAiCall();
 
     const parsed = JSON.parse(response.text || '{}');
-    return res.json({ success: true, data: parsed });
+    writeAiCache(investigateCacheKey, parsed);
+    return res.json({ success: true, data: parsed, cached: false });
   } catch (error: any) {
     console.error('Investigation error:', error);
     return res.status(502).json({ success: false, error: `AI investigation service failed: ${error.message || 'Unknown error'}` });
@@ -236,15 +388,43 @@ Field Knowledge: ${JSON.stringify(Array.isArray(knowledgeEntries) ? knowledgeEnt
 
 Provide a concise, authoritative answer citing specific past incident IDs, technician rules, and ISO 10816-3 standards.`;
 
+    const querySources = [
+      `Central Repository records for ${cleanMachineId}`,
+      'ISO 10816-3 Mechanical Specifications',
+    ];
+
+    const queryCacheKey = buildCacheKey('query', {
+      query: cleanQuery.toLowerCase(),
+      machineId: cleanMachineId,
+      incidents: Array.isArray(incidents) ? incidents.slice(0, 8) : [],
+      knowledge: Array.isArray(knowledgeEntries) ? knowledgeEntries.slice(0, 10) : [],
+    });
+
+    const cachedAnswer = readAiCache(queryCacheKey);
+    if (cachedAnswer) {
+      return res.json({ success: true, answer: cachedAnswer, sources: querySources, cached: true });
+    }
+
+    // Repository queries draw on the reserved portion of the daily allowance
+    if (!hasAiBudget(true)) {
+      return res.status(429).json({
+        success: false,
+        error: `Daily AI allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Previously answered repository queries remain available.`,
+      });
+    }
+
     const response = await client.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: prompt,
     });
+    recordAiCall();
 
+    writeAiCache(queryCacheKey, response.text);
     return res.json({
       success: true,
       answer: response.text,
-      sources: [`Central Repository records for ${cleanMachineId}`, 'ISO 10816-3 Mechanical Specifications'],
+      sources: querySources,
+      cached: false,
     });
   } catch (err: any) {
     console.error('Query error:', err);

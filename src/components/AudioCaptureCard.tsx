@@ -17,7 +17,7 @@ import {
   FileText,
   Lock,
 } from 'lucide-react';
-import { ExtractionResult, SensorReading } from '../types/industrial';
+import { ExtractionResult, SensorReading, Incident, KnowledgeItem } from '../types/industrial';
 
 interface AudioCaptureCardProps {
   onExtractionComplete: (
@@ -29,6 +29,8 @@ interface AudioCaptureCardProps {
   initialText?: string;
   activeMachineId?: string;
   machineName?: string;
+  incidents?: Incident[];
+  knowledgeEntries?: KnowledgeItem[];
 }
 
 export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
@@ -37,6 +39,8 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
   initialText = '',
   activeMachineId = 'M001',
   machineName = '5-Axis CNC High-Speed Main Electrospindle Unit',
+  incidents = [],
+  knowledgeEntries = [],
 }) => {
   // Audio Recording states - NO default audio on initial load
   const [isRecording, setIsRecording] = useState(false);
@@ -57,6 +61,10 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
   const [csvFileName, setCsvFileName] = useState<string>('');
   const [csvContent, setCsvContent] = useState<string>('');
   const [csvRows, setCsvRows] = useState<SensorReading[]>([]);
+
+  // Last extraction held against its input signature so transcription and the
+  // Step 2 hand-off share a single AI request instead of issuing one each
+  const extractionCacheRef = useRef<{ signature: string; result: ExtractionResult } | null>(null);
 
   // Refs for audio handling
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -321,6 +329,40 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
     }
   };
 
+  // Signature identifying the inputs an extraction was produced from
+  const buildExtractionSignature = () =>
+    `${audioBase64 || ''}|${memoText.trim()}|${activeMachineId}`;
+
+  // Single shared extraction path: returns the cached result when the inputs are
+  // unchanged, otherwise performs the one AI request both buttons rely on
+  const resolveExtraction = async (): Promise<ExtractionResult> => {
+    const signature = buildExtractionSignature();
+    if (extractionCacheRef.current && extractionCacheRef.current.signature === signature) {
+      return extractionCacheRef.current.result;
+    }
+
+    const response = await fetch('/api/intelligence/extract-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audioBase64: audioBase64 || undefined,
+        mimeType: 'audio/webm',
+        rawText: memoText || undefined,
+        machineIdDefault: activeMachineId,
+        incidents,
+        knowledgeEntries,
+      }),
+    });
+
+    const res = await response.json();
+    if (!res.success || !res.data) {
+      throw new Error(res.error || 'Could not parse extraction payload.');
+    }
+
+    extractionCacheRef.current = { signature, result: res.data };
+    return res.data;
+  };
+
   // Transcribe audio to text action
   const handleTranscribeAudio = async () => {
     if (!audioBase64 && !audioUrl && !memoText.trim()) {
@@ -330,22 +372,18 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
     setIsTranscribing(true);
     setErrorMsg(null);
     try {
-      const response = await fetch('/api/intelligence/extract-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioBase64: audioBase64 || undefined,
-          mimeType: 'audio/webm',
-          rawText: memoText || undefined,
-          machineIdDefault: activeMachineId,
-        }),
-      });
-      const res = await response.json();
-      if (res.success && res.data && res.data.source_summary) {
-        setMemoText((prev) => {
-          if (!prev.trim()) return res.data.source_summary;
-          return `${prev}\n\n[Transcribed Audio]: ${res.data.source_summary}`;
-        });
+      const data = await resolveExtraction();
+      if (data && data.source_summary) {
+        const nextText = memoText.trim()
+          ? `${memoText}\n\n[Transcribed Audio]: ${data.source_summary}`
+          : (data.source_summary as string);
+        setMemoText(nextText);
+        // Re-key the cache against the transcribed text so proceeding to Step 2
+        // reuses this result rather than re-requesting it
+        extractionCacheRef.current = {
+          signature: `${audioBase64 || ''}|${nextText.trim()}|${activeMachineId}`,
+          result: data,
+        };
       }
     } catch (e) {
       console.warn('Audio transcribe note:', e);
@@ -413,23 +451,8 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
       csvRows.length > 0 ? { rows: csvRows, csv: csvContent, fileName: csvFileName } : undefined;
 
     try {
-      const response = await fetch('/api/intelligence/extract-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioBase64: audioBase64 || undefined,
-          mimeType: 'audio/webm',
-          rawText: memoText,
-          machineIdDefault: activeMachineId,
-        }),
-      });
-
-      const res = await response.json();
-      if (res.success && res.data) {
-        onExtractionComplete(res.data, memoText, telemetryPayload);
-      } else {
-        throw new Error('Could not parse extraction payload.');
-      }
+      const data = await resolveExtraction();
+      onExtractionComplete(data, memoText, telemetryPayload);
     } catch (err: any) {
       console.warn('Extraction request note, utilizing reliable local extractor:', err);
       const lower = memoText.toLowerCase();

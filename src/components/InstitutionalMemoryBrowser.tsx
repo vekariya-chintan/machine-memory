@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Database,
   Search,
@@ -35,6 +35,9 @@ interface InstitutionalMemoryBrowserProps {
   activeMachineId?: string;
   onKnowledgeUpdated?: (updated: KnowledgeItem[]) => void;
   authenticatedTechnician?: Technician | null;
+  // Repository summary already produced during extraction; shown until the
+  // technician runs a query of their own
+  presetAnswer?: string;
 }
 
 export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProps> = ({
@@ -45,12 +48,15 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   activeMachineId = '',
   onKnowledgeUpdated,
   authenticatedTechnician,
+  presetAnswer = '',
 }) => {
   const [activeTab, setActiveTab] = useState<'knowledge' | 'incidents' | 'query'>('knowledge');
   const [search, setSearch] = useState('');
   const [selectedAssetFilter, setSelectedAssetFilter] = useState<string>('all');
   const [aiQuery, setAiQuery] = useState(activeMachineId ? `What are the recurring failure symptoms and inspection tips for asset ${activeMachineId}?` : 'What are the recurring failure symptoms and inspection tips for the selected machine?');
-  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiAnswer, setAiAnswer] = useState<string | null>(presetAnswer || null);
+  // Last answered query, so repeating a question is served locally
+  const lastQueryRef = useRef<{ key: string; answer: string } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedMediaIncident, setSelectedMediaIncident] = useState<Incident | null>(null);
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
@@ -158,6 +164,12 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
       return;
     }
 
+    const queryKey = `${validation.sanitized.toLowerCase()}|${selectedAssetFilter !== 'all' ? selectedAssetFilter : activeMachineId}`;
+    if (lastQueryRef.current && lastQueryRef.current.key === queryKey) {
+      setAiAnswer(lastQueryRef.current.answer);
+      return;
+    }
+
     setIsAiLoading(true);
     try {
       const res = await fetch('/api/intelligence/query', {
@@ -176,6 +188,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
         return;
       }
       setAiAnswer(data.answer);
+      lastQueryRef.current = { key: queryKey, answer: data.answer };
     } catch (e) {
       setAiAnswer(
         `Institutional Knowledge Summary: Plant records show documented failure patterns for ${activeMachineId}. Cross-referencing technician heuristics and OEM maintenance guides prevents unnecessary component replacements and reduces mean time to resolution.`

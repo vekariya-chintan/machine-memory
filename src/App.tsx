@@ -664,6 +664,8 @@ export default function App() {
                   initialText={rawMemoText}
                   activeMachineId={activeMachineIdResolved}
                   machineName={activeMachineNameResolved}
+                  incidents={incidents}
+                  knowledgeEntries={knowledge}
                 />
               )}
 
@@ -775,6 +777,7 @@ export default function App() {
             activeMachineId={activeMachineId !== 'ALL' ? activeMachineId : undefined}
             onKnowledgeUpdated={(updatedList) => setKnowledge(updatedList)}
             authenticatedTechnician={authenticatedTechnician}
+            presetAnswer={extractionResult?.institutional_answer || ''}
           />
         )}
 

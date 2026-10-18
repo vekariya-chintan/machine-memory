@@ -153,6 +153,9 @@ export interface ExtractionResult {
     rpm_drift?: boolean;
     thermal_expansion_likely?: boolean;
   };
+  // Repository answer produced alongside the extraction, so the memory browser
+  // can display it without spending a second AI request
+  institutional_answer?: string;
 }
 
 export interface KnowledgeItem {
