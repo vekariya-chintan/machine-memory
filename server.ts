@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import os from 'os';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
@@ -26,7 +27,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
     environment: process.env.NODE_ENV || 'development',
     port: PORT,
     secretsStatus: {
-      geminiApiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
+      geminiApiKeyConfigured: hasGeminiCredentials(),
+      geminiApiKeysLoaded: GEMINI_API_KEYS.length,
       sessionSecretConfigured: Boolean(process.env.SESSION_SECRET),
       firebaseConfigured: Boolean(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
     },
@@ -47,16 +49,27 @@ app.get('/api/config/firebase', (_req: Request, res: Response) => {
   });
 });
 
-// Initialize Google GenAI client if API key is present
-const apiKey = process.env.GEMINI_API_KEY;
-let ai: GoogleGenAI | null = null;
-if (apiKey) {
-  ai = new GoogleGenAI({ apiKey });
-}
+// ==========================================
+// GEMINI API KEY POOL
+// Free-tier request allowance is granted per Google Cloud project, so keys
+// issued from separate projects each carry their own daily quota. Keys are
+// used in order and the pool advances when one is exhausted.
+// ==========================================
+const GEMINI_API_KEYS: string[] = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+]
+  .map((key) => (typeof key === 'string' ? key.trim() : ''))
+  .filter((key) => key.length > 0);
 
-const getAiClient = () => {
+const hasGeminiCredentials = (): boolean => GEMINI_API_KEYS.length > 0;
+
+let activeKeyIndex = 0;
+
+const getAiClient = (keyIndex: number = activeKeyIndex) => {
   return new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY || '',
+    apiKey: GEMINI_API_KEYS[keyIndex] || '',
   });
 };
 
@@ -68,7 +81,11 @@ const getAiClient = () => {
 // ==========================================
 const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 20);
 const AI_QUERY_RESERVE = Number(process.env.AI_QUERY_RESERVE || 5);
-const AI_CACHE_FILE = path.join(__dirname, 'data', 'ai-cache.json');
+// Written to a writable scratch location by default: on Cloud Run the app
+// directory is read-only for the runtime user, so /tmp is the durable choice
+// within a running instance.
+const AI_CACHE_FILE =
+  process.env.AI_CACHE_FILE || path.join(os.tmpdir(), 'machinememory-ai-cache.json');
 
 interface CachedAiEntry {
   payload: any;
@@ -77,7 +94,8 @@ interface CachedAiEntry {
 
 const aiCache = new Map<string, CachedAiEntry>();
 let aiUsageDay = new Date().toISOString().slice(0, 10);
-let aiUsageCount = 0;
+// One counter per pooled key, since each project's allowance is tracked separately
+let aiUsageByKey: number[] = GEMINI_API_KEYS.map(() => 0);
 
 // Warm the cache from disk so repeated demo runs survive a server restart
 try {
@@ -114,20 +132,63 @@ const rollAiUsageDay = () => {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== aiUsageDay) {
     aiUsageDay = today;
-    aiUsageCount = 0;
+    aiUsageByKey = GEMINI_API_KEYS.map(() => 0);
+    activeKeyIndex = 0;
   }
 };
 
+const totalAiUsage = (): number => aiUsageByKey.reduce((sum, used) => sum + used, 0);
+
+const totalAiAllowance = (): number => AI_DAILY_LIMIT * GEMINI_API_KEYS.length;
+
 // Extraction stops at the reserve line; repository queries may spend the full allowance
+const keyCeiling = (reserved: boolean): number =>
+  reserved ? AI_DAILY_LIMIT : AI_DAILY_LIMIT - AI_QUERY_RESERVE;
+
 const hasAiBudget = (reserved = false): boolean => {
   rollAiUsageDay();
-  const ceiling = reserved ? AI_DAILY_LIMIT : AI_DAILY_LIMIT - AI_QUERY_RESERVE;
-  return aiUsageCount < ceiling;
+  const ceiling = keyCeiling(reserved);
+  return aiUsageByKey.some((used) => used < ceiling);
 };
 
-const recordAiCall = () => {
+// Quota rejections are the only failure worth retrying on another key
+const isQuotaError = (err: any): boolean => {
+  const status = err?.status ?? err?.code ?? err?.response?.status;
+  if (status === 429) return true;
+  const message = `${err?.message || ''}`.toUpperCase();
+  return message.includes('RESOURCE_EXHAUSTED') || message.includes('QUOTA') || message.includes('429');
+};
+
+// Issues the request on the first key with allowance left, moving to the next
+// key when one is exhausted mid-session
+const generateWithFailover = async (request: any, reserved = false): Promise<any> => {
   rollAiUsageDay();
-  aiUsageCount += 1;
+  const ceiling = keyCeiling(reserved);
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt < GEMINI_API_KEYS.length; attempt++) {
+    const keyIndex = (activeKeyIndex + attempt) % GEMINI_API_KEYS.length;
+    if (aiUsageByKey[keyIndex] >= ceiling) continue;
+
+    try {
+      const response = await getAiClient(keyIndex).models.generateContent(request);
+      aiUsageByKey[keyIndex] += 1;
+      activeKeyIndex = keyIndex;
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      if (!isQuotaError(err)) {
+        aiUsageByKey[keyIndex] += 1;
+        throw err;
+      }
+      // Key is spent for today: retire it and try the next project's allowance
+      console.warn(`Gemini key #${keyIndex + 1} exhausted, failing over to the next key.`);
+      aiUsageByKey[keyIndex] = AI_DAILY_LIMIT;
+      activeKeyIndex = (keyIndex + 1) % GEMINI_API_KEYS.length;
+    }
+  }
+
+  throw lastError || new Error('All configured Gemini API keys have reached their daily request allowance.');
 };
 
 // Live quota telemetry so the console can pace itself during a session
@@ -136,10 +197,17 @@ app.get('/api/intelligence/usage', (_req: Request, res: Response) => {
   res.json({
     success: true,
     day: aiUsageDay,
-    used: aiUsageCount,
-    limit: AI_DAILY_LIMIT,
+    used: totalAiUsage(),
+    limit: totalAiAllowance(),
+    perKeyLimit: AI_DAILY_LIMIT,
     reserve: AI_QUERY_RESERVE,
-    remaining: Math.max(0, AI_DAILY_LIMIT - aiUsageCount),
+    remaining: Math.max(0, totalAiAllowance() - totalAiUsage()),
+    keys: aiUsageByKey.map((used, index) => ({
+      key: `GEMINI_API_KEY${index === 0 ? '' : `_${index + 1}`}`,
+      used,
+      remaining: Math.max(0, AI_DAILY_LIMIT - used),
+      active: index === activeKeyIndex,
+    })),
     cachedResponses: aiCache.size,
   });
 });
@@ -169,11 +237,10 @@ const handleExtract = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Observation text exceeds maximum length of 3000 characters.' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!hasGeminiCredentials()) {
       return res.status(503).json({ success: false, error: 'Gemini AI service is not configured (GEMINI_API_KEY missing). Local fallback is disabled per strict cloud dependency configuration.' });
     }
 
-    const client = getAiClient();
     const systemPrompt = `You are an industrial reliability expert specializing in manufacturing machinery and ISO 10816-3 standards.
 Extract structured machine fault data from audio/text into JSON:
 {
@@ -247,11 +314,11 @@ when no repository context is supplied.`;
     if (!hasAiBudget()) {
       return res.status(429).json({
         success: false,
-        error: `Daily AI extraction allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Previously analysed observations remain available from cache.`,
+        error: `Daily AI extraction allowance reached (${totalAiUsage()}/${totalAiAllowance()} requests used). Previously analysed observations remain available from cache.`,
       });
     }
 
-    const response = await client.models.generateContent({
+    const response = await generateWithFailover({
       model: 'gemini-3.8-flash',
       contents: parts,
       config: {
@@ -259,7 +326,6 @@ when no repository context is supplied.`;
         responseMimeType: 'application/json',
       },
     });
-    recordAiCall();
 
     const parsed = JSON.parse(response.text || '{}');
     writeAiCache(extractCacheKey, parsed);
@@ -280,11 +346,10 @@ const handleInvestigate = async (req: Request, res: Response) => {
     const { sensorSnapshot, incident, historicalIncidents, knowledgeEntries, machine_id } = req.body;
     const targetMachId = (machine_id || incident?.machine_id || '').toUpperCase();
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!hasGeminiCredentials()) {
       return res.status(503).json({ success: false, error: 'Gemini AI service is not configured (GEMINI_API_KEY missing). Local fallback is disabled.' });
     }
 
-    const client = getAiClient();
     const systemInstruction = `You are a Senior Industrial Reliability Specialist for automated CNC manufacturing plants adhering to ISO 10816-3 standards.
 Produce a root-cause diagnostic investigation in JSON:
 {
@@ -329,11 +394,11 @@ Institutional Knowledge: ${JSON.stringify(knowledgeEntries || [], null, 2)}`;
     if (!hasAiBudget()) {
       return res.status(429).json({
         success: false,
-        error: `Daily AI investigation allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Cached investigations remain available.`,
+        error: `Daily AI investigation allowance reached (${totalAiUsage()}/${totalAiAllowance()} requests used). Cached investigations remain available.`,
       });
     }
 
-    const response = await client.models.generateContent({
+    const response = await generateWithFailover({
       model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
@@ -341,7 +406,6 @@ Institutional Knowledge: ${JSON.stringify(knowledgeEntries || [], null, 2)}`;
         responseMimeType: 'application/json',
       },
     });
-    recordAiCall();
 
     const parsed = JSON.parse(response.text || '{}');
     writeAiCache(investigateCacheKey, parsed);
@@ -376,11 +440,10 @@ const handleQuery = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Query text exceeds maximum length of 500 characters.' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!hasGeminiCredentials()) {
       return res.status(503).json({ success: false, error: 'Gemini AI service is not configured (GEMINI_API_KEY missing). Local fallback is disabled.' });
     }
 
-    const client = getAiClient();
     const prompt = `User Query: "${cleanQuery}"
 Target Machine: ${cleanMachineId}
 Verified Incidents: ${JSON.stringify(Array.isArray(incidents) ? incidents.slice(0, 8) : [], null, 2)}
@@ -409,15 +472,17 @@ Provide a concise, authoritative answer citing specific past incident IDs, techn
     if (!hasAiBudget(true)) {
       return res.status(429).json({
         success: false,
-        error: `Daily AI allowance reached (${aiUsageCount}/${AI_DAILY_LIMIT} requests used). Previously answered repository queries remain available.`,
+        error: `Daily AI allowance reached (${totalAiUsage()}/${totalAiAllowance()} requests used). Previously answered repository queries remain available.`,
       });
     }
 
-    const response = await client.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-    });
-    recordAiCall();
+    const response = await generateWithFailover(
+      {
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+      },
+      true
+    );
 
     writeAiCache(queryCacheKey, response.text);
     return res.json({
@@ -609,7 +674,7 @@ setupDevServer().then(() => {
     console.log(`================================================================`);
     console.log(` MachineMemory Industrial Platform active on port ${PORT}`);
     console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Gemini AI Engine: ${process.env.GEMINI_API_KEY ? 'Active (Secret Loaded)' : 'Fallback heuristic mode (No API Key)'}`);
+    console.log(` Gemini AI Engine: ${hasGeminiCredentials() ? `Active (${GEMINI_API_KEYS.length} key${GEMINI_API_KEYS.length > 1 ? 's' : ''} loaded, ${totalAiAllowance()} requests/day)` : 'Fallback heuristic mode (No API Key)'}`);
     console.log(` Session Security: ${process.env.SESSION_SECRET ? 'Configured via Secret Manager / Env' : 'Using default development key'}`);
     console.log(`================================================================`);
   });
