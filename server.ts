@@ -51,14 +51,13 @@ app.get('/api/config/firebase', (_req: Request, res: Response) => {
 
 // ==========================================
 // GEMINI API KEY POOL
-// Free-tier request allowance is granted per Google Cloud project, so keys
-// issued from separate projects each carry their own daily quota. Keys are
-// used in order and the pool advances when one is exhausted.
 // ==========================================
 const GEMINI_API_KEYS: string[] = [
   process.env.GEMINI_API_KEY,
   process.env.GEMINI_API_KEY_2,
   process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+  process.env.GEMINI_API_KEY_5,
 ]
   .map((key) => (typeof key === 'string' ? key.trim() : ''))
   .filter((key) => key.length > 0);
@@ -73,14 +72,9 @@ const getAiClient = (keyIndex: number = activeKeyIndex) => {
   });
 };
 
-// ==========================================
-// AI REQUEST BUDGET + RESPONSE CACHE
-// The Gemini free tier is bound by requests-per-day rather than tokens, so
-// identical payloads are replayed from cache and a reserve of the daily
-// allowance is held back for live repository queries.
-// ==========================================
+
 const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 20);
-const AI_QUERY_RESERVE = Number(process.env.AI_QUERY_RESERVE || 5);
+const AI_QUERY_RESERVE = Number(process.env.AI_QUERY_RESERVE || 3);
 // Written to a writable scratch location by default: on Cloud Run the app
 // directory is read-only for the runtime user, so /tmp is the durable choice
 // within a running instance.
