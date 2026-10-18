@@ -19,51 +19,75 @@ import {
   Cpu,
   ShieldCheck,
   AlertTriangle,
+  ArrowLeft,
 } from 'lucide-react';
 import { saveVerifiedResolutionToFirestore } from '../services/machineMemoryService';
 import { validateResolutionInput } from '../lib/securityValidation';
 import { Incident, Machine, ExtractionResult, VerificationMedia, VerificationMediaItem, Technician } from '../types/industrial';
+import { ShaftRunoutVideoViewer } from './ShaftRunoutVideoViewer';
+import { VoiceMemoAudioViewer } from './VoiceMemoAudioViewer';
+import { blobToDataURL, persistMediaItem, getPersistedMediaItem } from '../services/mediaStorageService';
 
 interface VerificationLearningModalProps {
   onLearningCommitted: (newIncident: Incident) => void;
   onViewAllMemory: () => void;
+  onBack?: () => void;
+  activeIncidentId?: string | null;
   activeMachineId?: string;
   machine?: Machine;
   extraction?: ExtractionResult;
   onStartNewInvestigation?: () => void;
   authenticatedTechnician?: Technician | null;
+  isReadOnly?: boolean;
+  existingIncident?: Incident | null;
 }
-
-// Realistic inline sample inspection photo (Industrial Flexible Jaw Coupling with worn polyurethane spider insert)
-const SAMPLE_COUPLING_PHOTO_URL =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><rect width="600" height="400" fill="%230b111e"/><rect x="20" y="20" width="560" height="360" rx="8" fill="%23131c2e" stroke="%23334155" stroke-width="2"/><circle cx="300" cy="200" r="120" fill="%231e293b" stroke="%2306b6d4" stroke-width="4"/><circle cx="300" cy="200" r="60" fill="%230f172a" stroke="%2394a3b8" stroke-width="3"/><path d="M 300 80 L 320 140 L 300 200 L 280 140 Z" fill="%23f59e0b"/><path d="M 300 320 L 320 260 L 300 200 L 280 260 Z" fill="%23f59e0b"/><path d="M 180 200 L 240 220 L 300 200 L 240 180 Z" fill="%23f59e0b"/><path d="M 420 200 L 360 220 L 300 200 L 360 180 Z" fill="%23ef4444"/><text x="300" y="55" font-family="monospace" font-size="14" font-weight="bold" fill="%2338bdf8" text-anchor="middle">PHYSICAL INSPECTION PROOF: COUPLING JAW SPIDER</text><text x="300" y="365" font-family="monospace" font-size="12" fill="%2394a3b8" text-anchor="middle">DIAL INDICATOR RADIAL RUNOUT: 0.14mm (SPEC &lt; 0.02mm) - SHREDDED 98A ELASTOMER</text><line x1="420" y1="200" x2="480" y2="150" stroke="%23ef4444" stroke-width="2"/><text x="485" y="145" font-family="monospace" font-size="11" font-weight="bold" fill="%23ef4444">SHREDDED JAW FRACTURE</text></svg>';
 
 export const VerificationLearningModal: React.FC<VerificationLearningModalProps> = ({
   onLearningCommitted,
   onViewAllMemory,
+  onBack,
+  activeIncidentId,
   activeMachineId = 'M001',
   machine,
   extraction,
   onStartNewInvestigation,
   authenticatedTechnician,
+  isReadOnly = false,
+  existingIncident,
 }) => {
   const currentAssetId = extraction?.machine_id || activeMachineId || 'M001';
 
   const defaultCause =
-    extraction?.probable_root_cause || `Operational fault verified on ${currentAssetId}`;
+    existingIncident?.cause ||
+    extraction?.probable_root_cause ||
+    `Operational fault verified on ${currentAssetId}`;
 
   const defaultRepair =
-    extraction?.recommended_inspection || `Completed corrective inspection on ${currentAssetId}`;
+    existingIncident?.repair ||
+    extraction?.recommended_inspection ||
+    `Completed corrective inspection on ${currentAssetId}`;
 
-  const dynamicDowntime = Math.max(25, Math.round((extraction?.warmup_minutes || 20) * 1.8));
+  const dynamicDowntime =
+    existingIncident?.downtime ??
+    Math.max(25, Math.round((extraction?.warmup_minutes || 20) * 1.8));
 
-  const dynamicNotes = extraction
-    ? `Physical check on ${currentAssetId} verified: ${extraction.probable_root_cause}. Corrective repair completed: ${extraction.recommended_inspection}. Resolved observed anomaly: ${(extraction.symptoms || []).join(', ')}.`
-    : `Physical inspection completed on ${currentAssetId}.`;
+  const dynamicNotes =
+    existingIncident?.notes ||
+    (extraction
+      ? `Physical check on ${currentAssetId} verified: ${extraction.probable_root_cause}. Corrective repair completed: ${extraction.recommended_inspection}. Resolved observed anomaly: ${(extraction.symptoms || []).join(', ')}.`
+      : `Physical inspection completed on ${currentAssetId}.`);
 
-  const initialVerifiedBy = authenticatedTechnician
-    ? `${authenticatedTechnician.name} (${authenticatedTechnician.role})`
-    : 'Marcus Vance (Lead Master Tech) / David Chen (Technician)';
+  const initialVerifiedBy =
+    existingIncident?.verified_by ||
+    (authenticatedTechnician
+      ? `${authenticatedTechnician.name} (${authenticatedTechnician.role})`
+      : 'Marcus Vance (Lead Master Tech) / David Chen (Technician)');
+
+  const isInitiallyClosed = Boolean(
+    isReadOnly ||
+    existingIncident?.status === 'verified' ||
+    existingIncident?.status === 'resolved'
+  );
 
   const [confirmedCause, setConfirmedCause] = useState(defaultCause);
   const [repairAction, setRepairAction] = useState(defaultRepair);
@@ -71,12 +95,22 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
   const [verifiedBy, setVerifiedBy] = useState(initialVerifiedBy);
   const [notes, setNotes] = useState(dynamicNotes);
 
-  // Verification Media State (Photos, Video, Audio) - Empty by default for new incident
-  const [photos, setPhotos] = useState<VerificationMediaItem[]>([]);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoNote, setVideoNote] = useState<string>('');
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioNote, setAudioNote] = useState<string>('');
+  // Verification Media State (Photos, Video, Audio)
+  const [photos, setPhotos] = useState<VerificationMediaItem[]>(
+    existingIncident?.verification_media?.photos || []
+  );
+  const [videoUrl, setVideoUrl] = useState<string | null>(
+    existingIncident?.verification_media?.video_url || null
+  );
+  const [videoNote, setVideoNote] = useState<string>(
+    existingIncident?.verification_media?.video_note || ''
+  );
+  const [audioUrl, setAudioUrl] = useState<string | null>(
+    existingIncident?.verification_media?.audio_url || null
+  );
+  const [audioNote, setAudioNote] = useState<string>(
+    existingIncident?.verification_media?.audio_note || ''
+  );
   const [activePhotoModal, setActivePhotoModal] = useState<string | null>(null);
 
   // Audio Recording State
@@ -87,57 +121,75 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
   const timerRef = useRef<any>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCommitted, setIsCommitted] = useState(false);
-  const [committedIncident, setCommittedIncident] = useState<Incident | null>(null);
+  const [isCommitted, setIsCommitted] = useState(isInitiallyClosed);
+  const [committedIncident, setCommittedIncident] = useState<Incident | null>(existingIncident || null);
   const [commitError, setCommitError] = useState<string | null>(null);
 
   useEffect(() => {
-    setConfirmedCause(defaultCause);
-    setRepairAction(defaultRepair);
-    setNotes(dynamicNotes);
-    setActualDowntime(dynamicDowntime);
-  }, [currentAssetId, defaultCause, defaultRepair, dynamicNotes, dynamicDowntime]);
-
-  // Audio Recording Handlers
-  const startAudioRecord = async () => {
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Not supported');
+    if (existingIncident) {
+      if (existingIncident.cause) setConfirmedCause(existingIncident.cause);
+      if (existingIncident.repair) setRepairAction(existingIncident.repair);
+      if (existingIncident.notes) setNotes(existingIncident.notes);
+      if (existingIncident.downtime !== undefined) setActualDowntime(existingIncident.downtime);
+      if (existingIncident.verified_by) setVerifiedBy(existingIncident.verified_by);
+      if (existingIncident.verification_media?.photos) {
+        setPhotos(existingIncident.verification_media.photos);
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const mr = new MediaRecorder(stream);
-      mediaRecorderRef.current = mr;
+      if (existingIncident.verification_media?.video_url) {
+        setVideoUrl(existingIncident.verification_media.video_url);
+      }
+      if (existingIncident.verification_media?.video_note) {
+        setVideoNote(existingIncident.verification_media.video_note);
+      }
+      if (existingIncident.verification_media?.audio_url) {
+        setAudioUrl(existingIncident.verification_media.audio_url);
+      }
+      if (existingIncident.verification_media?.audio_note) {
+        setAudioNote(existingIncident.verification_media.audio_note);
+      }
 
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
+      // Check IndexedDB persistent store for full-res video and audio
+      const incId = existingIncident.incident_id;
+      if (incId) {
+        getPersistedMediaItem(`${incId}_video`).then((persistedVideo) => {
+          if (persistedVideo) setVideoUrl(persistedVideo);
+        });
+        getPersistedMediaItem(`${incId}_audio`).then((persistedAudio) => {
+          if (persistedAudio) setAudioUrl(persistedAudio);
+        });
+      }
+    } else {
+      setConfirmedCause(defaultCause);
+      setRepairAction(defaultRepair);
+      setNotes(dynamicNotes);
+      setActualDowntime(dynamicDowntime);
+    }
+    if (isInitiallyClosed) {
+      setIsCommitted(true);
+      if (existingIncident) setCommittedIncident(existingIncident);
+    }
+  }, [currentAssetId, defaultCause, defaultRepair, dynamicNotes, dynamicDowntime, existingIncident, isInitiallyClosed]);
 
-      mr.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
-        setAudioNote(`Technician live voice sign-off on ${currentAssetId} physical verification.`);
-        stream.getTracks().forEach((t) => t.stop());
-      };
-
-      mr.start(250);
-      setIsRecordingAudio(true);
-      setRecordingSeconds(0);
-      timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.warn('Mic access unavailable:', err);
+  // Audio Handlers
+  const handleAudioUpload = async (file: File) => {
+    try {
+      const dataUrl = await blobToDataURL(file);
+      const incId = activeIncidentId || existingIncident?.incident_id || `INC-${currentAssetId}`;
+      await persistMediaItem(`${incId}_audio`, dataUrl);
+      setAudioUrl(dataUrl);
+      setAudioNote(`Technician audio memo (${file.name}) for ${currentAssetId}`);
+    } catch {
+      const url = URL.createObjectURL(file);
+      setAudioUrl(url);
+      setAudioNote(`Technician audio memo (${file.name}) for ${currentAssetId}`);
     }
   };
 
-  const stopAudioRecord = () => {
-    if (mediaRecorderRef.current && isRecordingAudio) {
-      mediaRecorderRef.current.stop();
-      setIsRecordingAudio(false);
-      clearInterval(timerRef.current);
-    }
+  const handleAudioRecorded = async (dataUrl: string, note?: string) => {
+    const incId = activeIncidentId || existingIncident?.incident_id || `INC-${currentAssetId}`;
+    await persistMediaItem(`${incId}_audio`, dataUrl);
+    setAudioUrl(dataUrl);
+    if (note) setAudioNote(note);
   };
 
   // Photo Upload Handlers
@@ -170,12 +222,18 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
   };
 
   // Video Upload Handlers
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setVideoUrl(url);
-    setVideoNote(`Shaft Runout Inspection Video Clip for ${currentAssetId} (${file.name})`);
+  const handleVideoUpload = async (file: File) => {
+    try {
+      const dataUrl = await blobToDataURL(file);
+      const incId = activeIncidentId || existingIncident?.incident_id || `INC-${currentAssetId}`;
+      await persistMediaItem(`${incId}_video`, dataUrl);
+      setVideoUrl(dataUrl);
+      setVideoNote(`Shaft Runout Inspection Video Clip for ${currentAssetId} (${file.name})`);
+    } catch {
+      const url = URL.createObjectURL(file);
+      setVideoUrl(url);
+      setVideoNote(`Shaft Runout Inspection Video Clip for ${currentAssetId} (${file.name})`);
+    }
   };
 
   // Commit Verified Incident to Firestore & Knowledge Base
@@ -183,7 +241,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
     setIsSubmitting(true);
     setCommitError(null);
     try {
-      const incidentId = `INC-${currentAssetId}-${Date.now().toString().slice(-4)}`;
+      const incidentId = activeIncidentId || `INC-${currentAssetId}-${Date.now().toString().slice(-4)}`;
 
       // Frontend Security Validation Check
       const validation = validateResolutionInput({
@@ -204,10 +262,21 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
       }
 
       const mediaPayload: VerificationMedia = {};
-      if (audioUrl) mediaPayload.audio_url = audioUrl;
+      if (audioUrl) {
+        mediaPayload.audio_url = audioUrl;
+        await persistMediaItem(`${incidentId}_audio`, audioUrl);
+      }
       if (audioNote) mediaPayload.audio_note = audioNote;
       if (photos.length > 0) mediaPayload.photos = photos;
-      if (videoUrl) mediaPayload.video_url = videoUrl;
+      if (videoUrl) {
+        await persistMediaItem(`${incidentId}_video`, videoUrl);
+        // If data URL is under 600KB, store in Firestore document; otherwise keep full in IndexedDB
+        if (videoUrl.length < 600000) {
+          mediaPayload.video_url = videoUrl;
+        } else {
+          mediaPayload.video_url = `indexeddb://${incidentId}_video`;
+        }
+      }
       if (videoNote) mediaPayload.video_note = videoNote;
 
       const hasMedia = Object.keys(mediaPayload).length > 0;
@@ -216,6 +285,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
         ...validation.sanitized,
         outcome: `Equipment restored to nominal ISO 10816-3 baseline; verified root cause: ${validation.sanitized.confirmed_cause}.`,
         verification_media: hasMedia ? mediaPayload : undefined,
+        symptom: extraction?.symptoms?.[0],
       });
 
       setCommittedIncident(incident);
@@ -356,56 +426,28 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              {/* Pillar A: Audio Record Option */}
+              {/* Pillar A: Audio Recording & Upload Option */}
               <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-300 font-bold flex items-center gap-1.5">
                     <Mic className="w-4 h-4 text-cyan-400" />
-                    AUDIO RECORDING
+                    AUDIO RECORDING &amp; UPLOAD
                   </span>
-                  {isRecordingAudio && (
-                    <span className="text-red-400 font-bold animate-pulse text-[11px]">
-                      ● REC {recordingSeconds}s
-                    </span>
-                  )}
+                  {audioUrl && <span className="text-emerald-400 font-bold text-[11px]">AUDIO ATTACHED</span>}
                 </div>
 
                 <p className="text-[11px] text-slate-400 font-mono">
-                  Record a voice memo explaining findings during the physical check on {currentAssetId}.
+                  Record live microphone voice memo or upload audio file explaining findings on {currentAssetId}.
                 </p>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {!isRecordingAudio ? (
-                    <button
-                      onClick={startAudioRecord}
-                      className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Mic className="w-3.5 h-3.5" />
-                      <span>START RECORDING</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={stopAudioRecord}
-                      className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono flex items-center gap-1.5 animate-pulse cursor-pointer"
-                    >
-                      <Square className="w-3.5 h-3.5" />
-                      <span>STOP RECORDING</span>
-                    </button>
-                  )}
-                </div>
-
-                {audioUrl && (
-                  <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                    <div className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>AUDIO MEMO READY FOR COMMIT</span>
-                    </div>
-                    <audio src={audioUrl} controls className="w-full h-8" />
-                    {audioNote && (
-                      <p className="text-[11px] font-mono text-slate-400 italic">"{audioNote}"</p>
-                    )}
-                  </div>
-                )}
+                <VoiceMemoAudioViewer
+                  audioUrl={audioUrl}
+                  audioNote={audioNote}
+                  assetId={currentAssetId}
+                  isReadOnly={false}
+                  onAudioUpload={handleAudioUpload}
+                  onAudioRecorded={handleAudioRecorded}
+                />
               </div>
 
               {/* Pillar B: Photos Upload Option */}
@@ -446,14 +488,14 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                           <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button
                               onClick={() => setActivePhotoModal(p.url)}
-                              className="p-1 rounded bg-cyan-600 text-slate-950 hover:bg-cyan-500"
+                              className="p-1 rounded bg-cyan-600 text-slate-950 hover:bg-cyan-500 cursor-pointer"
                               title="Enlarge photo"
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => removePhoto(p.id)}
-                              className="p-1 rounded bg-red-600 text-white hover:bg-red-500"
+                              className="p-1 rounded bg-red-600 text-white hover:bg-red-500 cursor-pointer"
                               title="Remove photo"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -472,7 +514,7 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-300 font-bold flex items-center gap-1.5">
                     <Video className="w-4 h-4 text-cyan-400" />
-                    VIDEO UPLOAD
+                    SHAFT RUNOUT VIDEO UPLOAD
                   </span>
                   {videoUrl && <span className="text-cyan-400 font-bold text-[11px]">VIDEO ATTACHED</span>}
                 </div>
@@ -481,27 +523,13 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
                   Upload video clip of rotating shaft runout or coupling play under strobe.
                 </p>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>UPLOAD VIDEO</span>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {videoUrl && (
-                  <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                    <video src={videoUrl} controls className="w-full h-24 bg-black rounded border border-slate-800 object-cover" />
-                    {videoNote && (
-                      <p className="text-[10px] font-mono text-slate-400 truncate">{videoNote}</p>
-                    )}
-                  </div>
-                )}
+                <ShaftRunoutVideoViewer
+                  videoUrl={videoUrl}
+                  videoNote={videoNote}
+                  assetId={currentAssetId}
+                  isReadOnly={false}
+                  onVideoUpload={handleVideoUpload}
+                />
               </div>
             </div>
           </div>
@@ -522,14 +550,26 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
               </div>
             </div>
 
-            <button
-              onClick={handleCommit}
-              disabled={isSubmitting}
-              className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50 cursor-pointer"
-            >
-              <Database className="w-4 h-4 text-slate-950" />
-              <span>{isSubmitting ? 'SAVING MEMORY...' : 'SAVE & CLOSE INVESTIGATION'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>BACK</span>
+                </button>
+              )}
+              <button
+                onClick={handleCommit}
+                disabled={isSubmitting}
+                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] shrink-0 disabled:opacity-50 cursor-pointer"
+              >
+                <Database className="w-4 h-4 text-slate-950" />
+                <span>{isSubmitting ? 'SAVING MEMORY...' : 'SAVE & CLOSE INVESTIGATION'}</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -607,63 +647,56 @@ export const VerificationLearningModal: React.FC<VerificationLearningModalProps>
 
               {/* Video Evidence Display */}
               <div className="space-y-2">
-                <span className="text-[11px] font-mono text-slate-400 font-bold flex items-center gap-1">
-                  <Video className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[11px] font-mono text-cyan-300 font-bold flex items-center gap-1">
+                  <Video className="w-3.5 h-3.5 text-cyan-400" />
                   SHAFT RUNOUT VIDEO:
                 </span>
-                {videoUrl ? (
-                  <video src={videoUrl} controls className="w-full h-24 bg-black rounded border border-slate-800 object-cover" />
-                ) : (
-                  <div className="text-[11px] text-slate-500 font-mono italic p-3 bg-slate-950 rounded">No video attached.</div>
-                )}
+                <ShaftRunoutVideoViewer
+                  videoUrl={videoUrl}
+                  videoNote={videoNote}
+                  assetId={currentAssetId}
+                  isReadOnly={true}
+                />
               </div>
 
               {/* Audio Verification Display */}
               <div className="space-y-2">
-                <span className="text-[11px] font-mono text-slate-400 font-bold flex items-center gap-1">
-                  <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] font-mono text-cyan-300 font-bold flex items-center gap-1">
+                  <Mic className="w-3.5 h-3.5 text-cyan-400" />
                   RECORDED VOICE MEMO:
                 </span>
-                {audioUrl ? (
-                  <div className="space-y-1 bg-slate-950 p-2 rounded border border-slate-800">
-                    <audio src={audioUrl} controls className="w-full h-8" />
-                    {audioNote && <p className="text-[10px] font-mono text-slate-400 truncate italic">"{audioNote}"</p>}
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-slate-500 font-mono italic p-3 bg-slate-950 rounded">No voice memo recorded.</div>
-                )}
+                <VoiceMemoAudioViewer
+                  audioUrl={audioUrl}
+                  audioNote={audioNote}
+                  assetId={currentAssetId}
+                  isReadOnly={true}
+                />
               </div>
             </div>
           </div>
 
-          {/* Action Row */}
-          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <button
-              onClick={() => setIsCommitted(false)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-mono transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>EDIT VERIFICATION RECORD</span>
-            </button>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={onViewAllMemory}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 font-bold text-xs font-mono transition-all cursor-pointer"
-              >
-                <span>BROWSE REPOSITORY (SEE SAVED MEDIA)</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-
-              {onStartNewInvestigation && (
+          {/* Action Footer */}
+          <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="text-xs font-mono text-slate-400"></div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {onBack && (
                 <button
-                  onClick={onStartNewInvestigation}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
+                  type="button"
+                  onClick={onBack}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>START NEW INVESTIGATION</span>
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>BACK</span>
                 </button>
               )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={onViewAllMemory}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer shrink-0"
+                >
+                  <span>CLOSE</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

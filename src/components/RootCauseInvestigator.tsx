@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
+  ArrowLeft,
   TrendingDown,
   Wrench,
   CheckSquare,
@@ -19,18 +20,22 @@ import { RecommendedAction, Machine, ExtractionResult } from '../types/industria
 
 interface RootCauseInvestigatorProps {
   onProceedToVerification: () => void;
+  onBack?: () => void;
   investigationData?: any;
   activeMachineId?: string;
   machine?: Machine;
   extraction?: ExtractionResult;
+  isReadOnly?: boolean;
 }
 
 export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
   onProceedToVerification,
+  onBack,
   investigationData,
   activeMachineId = 'M001',
   machine,
   extraction,
+  isReadOnly = false,
 }) => {
   const [checkedSteps, setCheckedSteps] = useState<Record<number, boolean>>({
     1: true,
@@ -236,8 +241,12 @@ export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
             return (
               <div
                 key={act.step}
-                onClick={() => toggleStep(act.step)}
-                className={`flex items-start gap-3 p-3 rounded border text-xs font-mono cursor-pointer transition-all ${
+                onClick={() => {
+                  if (!isReadOnly) toggleStep(act.step);
+                }}
+                className={`flex items-start gap-3 p-3 rounded border text-xs font-mono transition-all ${
+                  isReadOnly ? 'cursor-default' : 'cursor-pointer'
+                } ${
                   isDone
                     ? 'bg-emerald-950/20 border-emerald-800/80 text-emerald-300'
                     : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
@@ -279,16 +288,30 @@ export const RootCauseInvestigator: React.FC<RootCauseInvestigatorProps> = ({
       {/* Action Footer */}
       <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="text-xs font-mono text-slate-400">
-          Inspection steps completed on {activeMachineId}. Proceed to technician sign-off and commit confirmed cause to institutional memory.
+          {isReadOnly
+            ? `Inspection protocol for asset ${activeMachineId}. Review verified findings and institutional resolution.`
+            : `Inspection steps completed on ${activeMachineId}. Proceed to technician sign-off and commit confirmed cause to institutional memory.`}
         </div>
-        <button
-          onClick={onProceedToVerification}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
-        >
-          <CheckCircle2 className="w-4 h-4 text-slate-950" />
-          <span>PROCEED TO HUMAN VERIFICATION</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>BACK</span>
+            </button>
+          )}
+          <button
+            onClick={onProceedToVerification}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer shrink-0"
+          >
+            <CheckCircle2 className="w-4 h-4 text-slate-950" />
+            <span>{isReadOnly ? 'VIEW VERIFIED RESOLUTION' : 'PROCEED TO HUMAN VERIFICATION'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

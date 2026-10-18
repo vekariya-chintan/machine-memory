@@ -6,6 +6,7 @@ import {
   FileAudio,
   AlertTriangle,
   ArrowRight,
+  ArrowLeft,
   Radio,
   FileSpreadsheet,
   CheckCircle2,
@@ -18,6 +19,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { ExtractionResult, SensorReading, Incident, KnowledgeItem } from '../types/industrial';
+import { compressAudioBlob, blobToBase64 } from '../utils/audioCompressor';
 
 interface AudioCaptureCardProps {
   onExtractionComplete: (
@@ -26,27 +28,34 @@ interface AudioCaptureCardProps {
     telemetry?: { rows: SensorReading[]; csv: string; fileName?: string }
   ) => void;
   onProceed: () => void;
+  onBack?: () => void;
   initialText?: string;
   activeMachineId?: string;
   machineName?: string;
   incidents?: Incident[];
   knowledgeEntries?: KnowledgeItem[];
+  isReadOnly?: boolean;
+  initialTelemetry?: { rows: SensorReading[]; csv: string; fileName?: string } | null;
 }
 
 export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
   onExtractionComplete,
   onProceed,
+  onBack,
   initialText = '',
   activeMachineId = 'M001',
   machineName = '5-Axis CNC High-Speed Main Electrospindle Unit',
   incidents = [],
   knowledgeEntries = [],
+  isReadOnly = false,
+  initialTelemetry = null,
 }) => {
   // Audio Recording states - NO default audio on initial load
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const [audioMimeType, setAudioMimeType] = useState<string>('audio/webm');
   const [audioSourceLabel, setAudioSourceLabel] = useState<string>('');
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
@@ -54,6 +63,8 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
   const [memoText, setMemoText] = useState(initialText || '');
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionSeconds, setTranscriptionSeconds] = useState(0);
+  const [transcriptionStage, setTranscriptionStage] = useState('Preparing audio payload...');
   const [isExtracting, setIsExtracting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -83,6 +94,15 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
       setMemoText(initialText);
     }
   }, [initialText]);
+
+  // Sync initialTelemetry if parent passes attached CSV
+  useEffect(() => {
+    if (initialTelemetry) {
+      setCsvRows(initialTelemetry.rows || []);
+      setCsvContent(initialTelemetry.csv || '');
+      setCsvFileName(initialTelemetry.fileName || 'incident_telemetry.csv');
+    }
+  }, [initialTelemetry]);
 
   // Live Canvas Waveform Visualizer
   const startVisualizer = (stream?: MediaStream) => {
@@ -217,19 +237,24 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
-        setAudioSourceLabel(`Recorded Mic Audio (${recordingSeconds}s)`);
 
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          const cleanBase64 = base64data.split(',')[1];
-          setAudioBase64(cleanBase64);
-        };
+        try {
+          const compressed = await compressAudioBlob(audioBlob);
+          setAudioBase64(compressed.base64);
+          setAudioMimeType(compressed.mimeType || 'audio/webm');
+          setAudioSourceLabel(
+            `Recorded Mic Audio (${recordingSeconds}s · Compressed ${compressed.compressedSizeKb} KB)`
+          );
+        } catch (e) {
+          const base64 = await blobToBase64(audioBlob);
+          setAudioBase64(base64);
+          setAudioMimeType('audio/webm');
+          setAudioSourceLabel(`Recorded Mic Audio (${recordingSeconds}s)`);
+        }
 
         stream.getTracks().forEach((track) => track.stop());
         stopVisualizer();
@@ -266,21 +291,26 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
   };
 
   // 2. Upload Audio File
-  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
-    setAudioSourceLabel(`Uploaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+    const sizeKb = Math.round(file.size / 1024);
+    setAudioSourceLabel(`Uploading & Optimizing: ${file.name} (${sizeKb} KB)...`);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onloadend = () => {
-      const base64data = reader.result as string;
-      const cleanBase64 = base64data.split(',')[1];
-      setAudioBase64(cleanBase64);
-    };
+    try {
+      const compressed = await compressAudioBlob(file);
+      setAudioBase64(compressed.base64);
+      setAudioMimeType(compressed.mimeType || file.type || 'audio/webm');
+      setAudioSourceLabel(`Uploaded: ${file.name} (${compressed.compressedSizeKb} KB compressed)`);
+    } catch (err) {
+      const base64 = await blobToBase64(file);
+      setAudioBase64(base64);
+      setAudioMimeType(file.type || 'audio/webm');
+      setAudioSourceLabel(`Uploaded: ${file.name} (${sizeKb} KB)`);
+    }
   };
 
   // Clear / Discard Audio
@@ -291,6 +321,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
     setIsPlayingAudio(false);
     setAudioUrl(null);
     setAudioBase64(null);
+    setAudioMimeType('audio/webm');
     setAudioSourceLabel('');
   };
 
@@ -335,44 +366,75 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
 
   // Single shared extraction path: returns the cached result when the inputs are
   // unchanged, otherwise performs the one AI request both buttons rely on
-  const resolveExtraction = async (): Promise<ExtractionResult> => {
+  const resolveExtraction = async (onProgressStage?: (stage: string) => void): Promise<ExtractionResult> => {
     const signature = buildExtractionSignature();
     if (extractionCacheRef.current && extractionCacheRef.current.signature === signature) {
       return extractionCacheRef.current.result;
     }
 
-    const response = await fetch('/api/intelligence/extract-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        audioBase64: audioBase64 || undefined,
-        mimeType: 'audio/webm',
-        rawText: memoText || undefined,
-        machineIdDefault: activeMachineId,
-        incidents,
-        knowledgeEntries,
-      }),
-    });
+    if (onProgressStage) onProgressStage('Analyzing compressed audio stream & querying Gemini AI...');
 
-    const res = await response.json();
-    if (!res.success || !res.data) {
-      throw new Error(res.error || 'Could not parse extraction payload.');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s extended timeout
+
+    try {
+      const response = await fetch('/api/intelligence/extract-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          audioBase64: audioBase64 || undefined,
+          mimeType: audioMimeType || 'audio/webm',
+          rawText: memoText || undefined,
+          machineIdDefault: activeMachineId,
+          incidents,
+          knowledgeEntries,
+        }),
+      });
+
+      clearTimeout(timeoutId);
+
+      const res = await response.json();
+      if (!res.success || !res.data) {
+        throw new Error(res.error || 'Could not parse extraction payload.');
+      }
+
+      extractionCacheRef.current = { signature, result: res.data };
+      return res.data;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Audio transcription request timed out after 120 seconds. Please click RETRY TRANSCRIBE or type observations directly.');
+      }
+      throw err;
     }
-
-    extractionCacheRef.current = { signature, result: res.data };
-    return res.data;
   };
 
-  // Transcribe audio to text action
+  // Transcribe audio to text action with animated multi-stage loading feedback
   const handleTranscribeAudio = async () => {
     if (!audioBase64 && !audioUrl && !memoText.trim()) {
-      setErrorMsg('No audio available to transcribe. Record or upload audio first.');
+      setErrorMsg('No audio available to transcribe. Record mic audio or upload an audio memo file first.');
       return;
     }
     setIsTranscribing(true);
+    setTranscriptionSeconds(0);
+    setTranscriptionStage('Optimizing audio payload & connecting to AI service...');
     setErrorMsg(null);
+
+    const timer = setInterval(() => {
+      setTranscriptionSeconds((prev) => {
+        const next = prev + 1;
+        if (next === 2) setTranscriptionStage('Analyzing acoustic spectrum & extracting audio features...');
+        if (next === 8) setTranscriptionStage('Transcribing machine operational sound & technician notes...');
+        if (next === 18) setTranscriptionStage('Correlating acoustic anomalies with ISO 10816-3 standards...');
+        if (next === 35) setTranscriptionStage('Synthesizing structured technical report transcript...');
+        if (next === 55) setTranscriptionStage('Finalizing multimodal transcription response...');
+        return next;
+      });
+    }, 1000);
+
     try {
-      const data = await resolveExtraction();
+      const data = await resolveExtraction((stage) => setTranscriptionStage(stage));
       if (data && data.source_summary) {
         const nextText = memoText.trim()
           ? `${memoText}\n\n[Transcribed Audio]: ${data.source_summary}`
@@ -385,10 +447,13 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
           result: data,
         };
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Audio transcribe note:', e);
+      setErrorMsg(e?.message || 'Audio transcription encountered an error. Click RETRY TRANSCRIBE or type observations directly below.');
     } finally {
+      clearInterval(timer);
       setIsTranscribing(false);
+      setTranscriptionSeconds(0);
     }
   };
 
@@ -411,20 +476,39 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
 
   const parseUploadedCsv = (text: string) => {
     try {
-      const lines = text.trim().split('\n');
+      const lines = text.trim().split('\n').filter((l) => l.trim().length > 0);
+      if (lines.length < 2) return;
+
+      const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const timeIdx = header.findIndex((h) => h.includes('time') || h.includes('date') || h.includes('timestamp'));
+      const machIdx = header.findIndex((h) => h.includes('machine') || h.includes('asset'));
+      const tempIdx = header.findIndex((h) => h.includes('temp'));
+      const vibIdx = header.findIndex((h) => h.includes('vib'));
+      const rpmIdx = header.findIndex((h) => h.includes('rpm') || h.includes('speed'));
+      const pwrIdx = header.findIndex((h) => h.includes('pow') || h.includes('pwr') || h.includes('kw'));
+
       const rows: SensorReading[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',');
-        if (parts.length >= 6) {
-          rows.push({
-            timestamp: parts[0].trim(),
-            minute: (i - 1) * 5,
-            machine_id: parts[1].trim(),
-            temperature: parseFloat(parts[2]),
-            vibration: parseFloat(parts[3]),
-            rpm: parseFloat(parts[4]),
-            power: parseFloat(parts[5]),
-          });
+        const parts = lines[i].split(',').map((p) => p.trim());
+        if (parts.length >= 4) {
+          const t = timeIdx !== -1 ? parts[timeIdx] : parts[0];
+          const mId = machIdx !== -1 ? parts[machIdx] : activeMachineId;
+          const temp = tempIdx !== -1 ? parseFloat(parts[tempIdx]) : parseFloat(parts[2] || '45');
+          const vib = vibIdx !== -1 ? parseFloat(parts[vibIdx]) : parseFloat(parts[3] || '1.1');
+          const rpm = rpmIdx !== -1 ? parseFloat(parts[rpmIdx]) : parseFloat(parts[4] || '3000');
+          const pwr = pwrIdx !== -1 ? parseFloat(parts[pwrIdx]) : parseFloat(parts[5] || '15');
+
+          if (!isNaN(vib) && !isNaN(temp)) {
+            rows.push({
+              timestamp: t,
+              minute: (i - 1) * 5,
+              machine_id: mId || activeMachineId,
+              temperature: isNaN(temp) ? 45.0 : temp,
+              vibration: isNaN(vib) ? 1.0 : vib,
+              rpm: isNaN(rpm) ? 3000 : rpm,
+              power: isNaN(pwr) ? 15.0 : pwr,
+            });
+          }
         }
       }
       if (rows.length > 0) {
@@ -587,13 +671,35 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
         </div>
       </div>
 
+      {/* Read-Only Status Banner */}
+      {isReadOnly && (
+        <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs font-mono flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>
+            <strong>SAVED &amp; CLOSED INVESTIGATION:</strong> This record is complete and verified. Viewing in read-only mode.
+          </span>
+        </div>
+      )}
+
       {/* Troubleshooting Warning Banner */}
-      {errorMsg && (
-        <div className="p-3.5 rounded-lg bg-amber-950/40 border border-amber-800/80 text-amber-300 text-xs flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-semibold block">{errorMsg}</span>
+      {!isReadOnly && errorMsg && (
+        <div className="p-3.5 rounded-lg bg-amber-950/40 border border-amber-800/80 text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-semibold block">{errorMsg}</span>
+            </div>
           </div>
+          {(audioBase64 || audioUrl || memoText.trim()) && (
+            <button
+              onClick={handleTranscribeAudio}
+              disabled={isTranscribing}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs font-mono transition-colors shadow-md cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>RETRY TRANSCRIBE</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -634,59 +740,74 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
                     <span className="w-1 h-3 bg-slate-700 rounded-full" />
                   </div>
                   <span className="text-slate-400 font-medium">
-                    {audioUrl ? audioSourceLabel : 'Record mic audio or upload an audio memo'}
+                    {audioUrl ? audioSourceLabel : isReadOnly ? 'No voice recording attached to this investigation' : 'Record mic audio or upload an audio memo'}
                   </span>
                 </div>
               )}
             </div>
 
             {/* Controls Row: 1. Audio Recording & 2. Upload Audio */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {!isRecording ? (
-                /* Live Mic Record Button */
-                <button
-                  onClick={startRecording}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                  title="Capture live microphone recording from device"
-                >
-                  <Mic className="w-3.5 h-3.5" />
-                  <span>RECORD AUDIO</span>
-                </button>
-              ) : (
-                /* Stop Recording Button */
-                <button
-                  onClick={stopRecording}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono transition-all animate-pulse"
-                >
-                  <Square className="w-3.5 h-3.5" />
-                  <span>STOP RECORDING</span>
-                </button>
-              )}
+            {!isReadOnly ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                {!isRecording ? (
+                  /* Live Mic Record Button */
+                  <button
+                    onClick={startRecording}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
+                    title="Capture live microphone recording from device"
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>RECORD AUDIO</span>
+                  </button>
+                ) : (
+                  /* Stop Recording Button */
+                  <button
+                    onClick={stopRecording}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono transition-all animate-pulse cursor-pointer"
+                  >
+                    <Square className="w-3.5 h-3.5" />
+                    <span>STOP RECORDING</span>
+                  </button>
+                )}
 
-              {/* Upload Audio Button */}
-              <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-mono transition-colors border border-slate-700 cursor-pointer">
-                <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                <span>UPLOAD AUDIO</span>
-                <input
-                  type="file"
-                  accept="audio/*,.wav,.mp3,.ogg,.webm,.m4a"
-                  onChange={handleAudioFileUpload}
-                  className="hidden"
-                />
-              </label>
+                {/* Upload Audio Button */}
+                <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-mono transition-colors border border-slate-700 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>UPLOAD AUDIO</span>
+                  <input
+                    type="file"
+                    accept="audio/*,.wav,.mp3,.ogg,.webm,.m4a"
+                    onChange={handleAudioFileUpload}
+                    className="hidden"
+                  />
+                </label>
 
-              {/* TTS Listen Button */}
-              {memoText.trim().length > 0 && (
-                <button
-                  onClick={playSynthesizedMemo}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono transition-colors border border-slate-700"
-                  title="Synthesize and play the text memo as voice"
-                >
-                  <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{isSynthesizing ? 'STOP VOICE' : 'PLAY TEXT'}</span>
-                </button>
-              )}
-            </div>
+                {/* TTS Listen Button */}
+                {memoText.trim().length > 0 && (
+                  <button
+                    onClick={playSynthesizedMemo}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono transition-colors border border-slate-700 cursor-pointer"
+                    title="Synthesize and play the text memo as voice"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{isSynthesizing ? 'STOP VOICE' : 'PLAY TEXT'}</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              memoText.trim().length > 0 && (
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={playSynthesizedMemo}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono transition-colors border border-slate-700 cursor-pointer"
+                    title="Synthesize and play the text memo as voice"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{isSynthesizing ? 'STOP VOICE' : 'PLAY TEXT (AUDIO SYNTHESIS)'}</span>
+                  </button>
+                </div>
+              )
+            )}
 
             {/* 3. Play Recorded / Uploaded Audio Option - Displayed strictly after upload or record */}
             {audioUrl ? (
@@ -700,20 +821,22 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
                     <span className="text-[11px] text-cyan-400 truncate max-w-[190px]">
                       {audioSourceLabel}
                     </span>
-                    <button
-                      onClick={handleClearAudio}
-                      className="text-slate-500 hover:text-red-400 p-0.5 rounded transition-colors"
-                      title="Discard audio recording"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        onClick={handleClearAudio}
+                        className="text-slate-500 hover:text-red-400 p-0.5 rounded transition-colors cursor-pointer"
+                        title="Discard audio recording"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <button
                     onClick={togglePlayAudio}
-                    className="p-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all shrink-0 shadow-sm"
+                    className="p-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shrink-0 shadow-[0_0_12px_rgba(6,182,212,0.4)] cursor-pointer"
                     title={isPlayingAudio ? 'Pause Audio' : 'Play Audio'}
                   >
                     {isPlayingAudio ? (
@@ -753,50 +876,90 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
                   <FileText className="w-4 h-4 text-cyan-400" />
                   <span>AUDIO TO TEXT / TECHNICIAN REPORT MEMO</span>
                 </span>
-                <span className="text-slate-500 text-[11px]">Directly editable</span>
+                <span className="text-slate-500 text-[11px]">
+                  {isReadOnly ? 'Investigation closed · Read-only locked' : 'Directly editable'}
+                </span>
               </div>
 
-              {/* Editable Textarea: User can edit or type direct text - Empty by default for new incident */}
+              {/* Textarea: Editable during investigation; read-only and locked when investigation closed */}
               <textarea
                 value={memoText}
-                onChange={(e) => setMemoText(e.target.value)}
+                onChange={(e) => !isReadOnly && setMemoText(e.target.value)}
+                readOnly={isReadOnly}
+                disabled={isReadOnly}
                 rows={7}
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3.5 text-slate-200 text-sm focus:outline-none focus:border-cyan-500 font-mono resize-none leading-relaxed shadow-inner placeholder:text-slate-600"
+                className={`w-full bg-slate-900 border rounded-lg p-3.5 text-slate-200 text-sm font-mono resize-none leading-relaxed shadow-inner ${
+                  isReadOnly
+                    ? 'border-slate-800/80 bg-slate-900/50 cursor-default select-text'
+                    : 'border-slate-800 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600'
+                }`}
                 placeholder="Type technician observations directly or record audio above to transcribe..."
               />
 
               <p className="mt-2 text-[11px] text-slate-500 font-mono leading-relaxed">
-                *Technician observation text field: Empty by default for new incidents. Type direct notes or transcribe audio.
+                {isReadOnly
+                  ? '*Historical technician memo locked. All modifications are disabled for closed investigations.'
+                  : '*Technician observation text field: Empty by default for new incidents. Type direct notes or transcribe audio.'}
               </p>
+
+              {/* Transcribing Progress Banner */}
+              {isTranscribing && (
+                <div className="mt-3 p-3 bg-cyan-950/80 border border-cyan-800 rounded-lg text-xs font-mono text-cyan-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-inner">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-bold text-cyan-300 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                        {transcriptionStage}
+                      </span>
+                      <span className="text-[10px] text-cyan-400/80 mt-0.5">
+                        {transcriptionSeconds}s elapsed · {audioSourceLabel || 'Processing audio stream'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
+                    <span className="w-1 h-3 bg-cyan-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1 h-4 bg-cyan-300 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1 h-5 bg-cyan-200 rounded-full animate-bounce" />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Actions for Text Field */}
-            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleTranscribeAudio}
-                  disabled={isTranscribing || (!audioBase64 && !audioUrl && !memoText.trim())}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Transcribe current audio recording to text"
-                >
-                  <Sparkles className="w-3 h-3 text-cyan-400" />
-                  <span>{isTranscribing ? 'TRANSCRIBING...' : 'TRANSCRIBE AUDIO'}</span>
-                </button>
+            {/* Actions for Text Field - hidden when closed/read-only */}
+            {!isReadOnly ? (
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTranscribeAudio}
+                    disabled={isTranscribing || (!audioBase64 && !audioUrl && !memoText.trim())}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Transcribe current audio recording to text"
+                  >
+                    <Sparkles className="w-3 h-3 text-cyan-400" />
+                    <span>{isTranscribing ? 'TRANSCRIBING...' : 'TRANSCRIBE AUDIO'}</span>
+                  </button>
 
-                <button
-                  onClick={() => setMemoText('')}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-slate-900 text-slate-500 hover:text-red-400 transition-colors"
-                  title="Clear text field to type clean report"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Clear</span>
-                </button>
+                  <button
+                    onClick={() => setMemoText('')}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-slate-900 text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
+                    title="Clear text field to type clean report"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Clear</span>
+                  </button>
+                </div>
+
+                <span className="text-[11px] text-slate-500">
+                  {memoText.length} characters
+                </span>
               </div>
-
-              <span className="text-[11px] text-slate-500">
-                {memoText.length} characters
-              </span>
-            </div>
+            ) : (
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>Verified Incident Report</span>
+                <span>{memoText.length} characters</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -824,26 +987,29 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
               </span>
             )}
 
-            {/* Upload CSV button */}
-            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono transition-colors cursor-pointer">
-              <Upload className="w-3.5 h-3.5" />
-              <span>{csvRows.length > 0 ? 'REPLACE CSV' : 'UPLOAD CSV FILE'}</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleCsvFileUpload}
-                className="hidden"
-              />
-            </label>
+            {/* Upload CSV button - hidden when read-only */}
+            {!isReadOnly && (
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono transition-colors cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{csvRows.length > 0 ? 'REPLACE CSV' : 'UPLOAD CSV FILE'}</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleCsvFileUpload}
+                  className="hidden"
+                />
+              </label>
+            )}
 
-            {csvRows.length > 0 && (
+            {/* Detach CSV button - hidden when read-only */}
+            {!isReadOnly && csvRows.length > 0 && (
               <button
                 onClick={() => {
                   setCsvContent('');
                   setCsvRows([]);
                   setCsvFileName('');
                 }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-red-400 border border-slate-800 text-xs font-mono transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-red-400 border border-slate-800 text-xs font-mono transition-colors cursor-pointer"
                 title="Detach uploaded CSV telemetry"
               >
                 <Trash2 className="w-3 h-3" />
@@ -905,10 +1071,12 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
           <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-lg p-5 text-center space-y-2">
             <FileSpreadsheet className="w-7 h-7 text-slate-600 mx-auto" />
             <div className="text-xs font-bold text-slate-300 font-mono">
-              NO SENSOR CSV TELEMETRY ATTACHED YET
+              NO SENSOR CSV TELEMETRY ATTACHED
             </div>
             <p className="text-[11px] text-slate-500 font-mono max-w-md mx-auto">
-              Optional: Attach a sensor CSV file (time, temp, vibration, rpm, power), or proceed and telemetry curves will be automatically correlated based on your technician observations.
+              {isReadOnly
+                ? 'No sensor telemetry CSV file was attached to this closed investigation.'
+                : 'Optional: Attach a sensor CSV file (time, temp, vibration, rpm, power), or proceed and telemetry curves will be automatically correlated based on your technician observations.'}
             </p>
           </div>
         )}
@@ -917,7 +1085,7 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
       {/* Main Bottom Call-To-Action: Submit Report & Proceed to Fact Extraction */}
       <div className="pt-2 space-y-3">
         {/* Step 1 data requirement alert when empty */}
-        {!hasStep1Data && (
+        {!isReadOnly && !hasStep1Data && (
           <div className="flex items-center gap-2.5 p-3 rounded-lg bg-amber-950/30 border border-amber-800/50 text-amber-300 text-xs font-mono">
             <Lock className="w-4 h-4 shrink-0 text-amber-400" />
             <span>
@@ -928,38 +1096,54 @@ export const AudioCaptureCard: React.FC<AudioCaptureCardProps> = ({
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="text-xs font-mono text-slate-400 flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${hasStep1Data ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+            <span className={`w-2 h-2 rounded-full ${isReadOnly || hasStep1Data ? 'bg-emerald-400' : 'bg-slate-600'}`} />
             <span>
-              {hasStep1Data
+              {isReadOnly
+                ? 'Closed investigation: viewing stored technician report data (read-only).'
+                : hasStep1Data
                 ? 'Report ready: Submit incident to proceed to Fact Extraction'
                 : 'Incident report input required before proceeding'}
             </span>
           </div>
 
-          <button
-            onClick={handleExtract}
-            disabled={!hasStep1Data || isExtracting}
-            className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-lg font-bold text-xs font-mono transition-all shrink-0 ${
-              hasStep1Data && !isExtracting
-                ? 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer'
-                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
-            }`}
-            title={
-              !hasStep1Data
-                ? 'Please record audio or type memo observations to proceed'
-                : 'Submit incident report and extract structured engineering facts'
-            }
-          >
-            <Sparkles className="w-4 h-4 text-inherit" />
-            <span>
-              {isExtracting
-                ? 'ANALYZING INCIDENT & EXTRACTING FACTS...'
-                : hasStep1Data
-                ? 'SUBMIT INCIDENT & EXTRACT FACTS'
-                : 'INCIDENT REPORT REQUIRED TO PROCEED'}
-            </span>
-            <ArrowRight className="w-4 h-4 text-inherit" />
-          </button>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {isReadOnly ? (
+              <button
+                type="button"
+                onClick={onProceed}
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer shrink-0"
+                title="Proceed to view extracted facts"
+              >
+                <span>PROCEED TO FACT EXTRACTION</span>
+                <ArrowRight className="w-4 h-4 text-inherit" />
+              </button>
+            ) : (
+              <button
+                onClick={handleExtract}
+                disabled={!hasStep1Data || isExtracting}
+                className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-lg font-bold text-xs font-mono transition-all shrink-0 ${
+                  hasStep1Data && !isExtracting
+                    ? 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                }`}
+                title={
+                  !hasStep1Data
+                    ? 'Please record audio or type memo observations to proceed'
+                    : 'Submit incident report and extract structured engineering facts'
+                }
+              >
+                <Sparkles className="w-4 h-4 text-inherit" />
+                <span>
+                  {isExtracting
+                    ? 'ANALYZING INCIDENT & EXTRACTING FACTS...'
+                    : hasStep1Data
+                    ? 'SUBMIT INCIDENT & EXTRACT FACTS'
+                    : 'INCIDENT REPORT REQUIRED TO PROCEED'}
+                </span>
+                <ArrowRight className="w-4 h-4 text-inherit" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

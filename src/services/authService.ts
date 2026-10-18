@@ -24,14 +24,11 @@ export async function ensureTechniciansTablePopulated(_initialPassword?: string)
   try {
     const isConnected = await testFirestoreConnection();
     if (!isConnected) {
-      console.warn('Firestore database is not connected; skipping technician load.');
+      console.warn('Firestore database is not connected; skipping user load.');
       return [];
     }
 
-    let snap = await getDocs(collection(db, 'users'));
-    if (snap.empty) {
-      snap = await getDocs(collection(db, 'technicians'));
-    }
+    const snap = await getDocs(collection(db, 'users'));
 
     if (!snap.empty) {
       return snap.docs
@@ -88,11 +85,7 @@ export async function authenticateTechnician(
     }
 
     const usersCollection = collection(db, 'users');
-    let snap = await getDocs(usersCollection);
-    if (snap.empty) {
-      const techCol = collection(db, 'technicians');
-      snap = await getDocs(techCol);
-    }
+    const snap = await getDocs(usersCollection);
 
     const matchingDoc = snap.docs.find((d) => {
       const data = d.data();
@@ -119,13 +112,13 @@ export async function authenticateTechnician(
         };
       }
     } else {
-      await updateDoc(doc(db, matchingDoc.ref.parent.id, matchingDoc.id), {
+      await updateDoc(doc(db, 'users', matchingDoc.id), {
         password_hash: enteredHash,
         last_login: new Date().toISOString(),
       });
     }
 
-    await updateDoc(doc(db, matchingDoc.ref.parent.id, matchingDoc.id), {
+    await updateDoc(doc(db, 'users', matchingDoc.id), {
       last_login: new Date().toISOString(),
     }).catch(() => {});
 
@@ -167,10 +160,7 @@ export async function verifySessionWithBackend(): Promise<Technician | null> {
   if (!cachedTech) return null;
 
   try {
-    let userDoc = await getDoc(doc(db, 'users', cachedTech.technician_id));
-    if (!userDoc.exists()) {
-      userDoc = await getDoc(doc(db, 'technicians', cachedTech.technician_id));
-    }
+    const userDoc = await getDoc(doc(db, 'users', cachedTech.technician_id));
 
     if (userDoc.exists()) {
       const data = userDoc.data();

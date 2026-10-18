@@ -6,6 +6,7 @@ import {
   BookOpen,
   User,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   Layers,
   Wrench,
@@ -22,6 +23,8 @@ interface MemoryRetrievalMatrixProps {
   incidents: Incident[];
   knowledge: KnowledgeItem[];
   onProceed: () => void;
+  onBack?: () => void;
+  activeIncidentId?: string | null;
   activeMachineId?: string;
   extraction?: ExtractionResult;
 }
@@ -30,6 +33,8 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
   incidents,
   knowledge,
   onProceed,
+  onBack,
+  activeIncidentId,
   activeMachineId = 'M001',
   extraction,
 }) => {
@@ -91,7 +96,14 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
     return { score: 65, reason: `General fleet standard operating reference (${k.machine_id})` };
   };
 
-  const safeIncidents = (incidents || []).filter((inc): inc is Incident => Boolean(inc && inc.incident_id));
+  // Exclude ongoing active incident from historical evidence retrieval
+  const safeIncidents = (incidents || [])
+    .filter((inc): inc is Incident => Boolean(inc && inc.incident_id))
+    .filter((inc) => {
+      if (activeIncidentId && inc.incident_id === activeIncidentId) return false;
+      if (inc.status === 'investigating') return false;
+      return true;
+    });
   const safeKnowledge = (knowledge || []).filter((k): k is KnowledgeItem => Boolean(k && k.knowledge_id));
 
   // Count categories
@@ -166,7 +178,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
         <button
           onClick={() => setFilter('incidents')}
-          className={`p-3 rounded-lg border text-left transition-all ${
+          className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
             filter === 'incidents'
               ? 'bg-cyan-950/70 border-cyan-500 shadow-md ring-1 ring-cyan-500/40'
               : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
@@ -182,7 +194,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
 
         <button
           onClick={() => setFilter('tips')}
-          className={`p-3 rounded-lg border text-left transition-all ${
+          className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
             filter === 'tips'
               ? 'bg-purple-950/70 border-purple-500 shadow-md ring-1 ring-purple-500/40'
               : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
@@ -198,7 +210,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
 
         <button
           onClick={() => setFilter('manual')}
-          className={`p-3 rounded-lg border text-left transition-all ${
+          className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
             filter === 'manual'
               ? 'bg-amber-950/70 border-amber-500 shadow-md ring-1 ring-amber-500/40'
               : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
@@ -214,7 +226,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
 
         <button
           onClick={() => setFilter('history')}
-          className={`p-3 rounded-lg border text-left transition-all ${
+          className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
             filter === 'history'
               ? 'bg-emerald-950/70 border-emerald-500 shadow-md ring-1 ring-emerald-500/40'
               : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
@@ -234,7 +246,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
         <div className="flex items-center gap-1 p-1 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               filter === 'all'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -244,7 +256,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
           </button>
           <button
             onClick={() => setFilter('incidents')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               filter === 'incidents'
                 ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -254,7 +266,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
           </button>
           <button
             onClick={() => setFilter('tips')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               filter === 'tips'
                 ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -264,7 +276,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
           </button>
           <button
             onClick={() => setFilter('manual')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               filter === 'manual'
                 ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -274,7 +286,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
           </button>
           <button
             onClick={() => setFilter('history')}
-            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
               filter === 'history'
                 ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/50'
                 : 'text-slate-400 hover:text-slate-200'
@@ -490,14 +502,26 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
           Synthesized all 4 evidence pillars for asset <strong>{currentAssetId}</strong>. Ready for Autonomous Root-Cause Investigation.
         </div>
 
-        <button
-          onClick={onProceed}
-          className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] shrink-0"
-        >
-          <Sparkles className="w-4 h-4 text-slate-950" />
-          <span>PROCEED TO ROOT-CAUSE INVESTIGATION</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>BACK</span>
+            </button>
+          )}
+          <button
+            onClick={onProceed}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] shrink-0 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>PROCEED TO ROOT-CAUSE INVESTIGATION</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Photo Lightbox Modal */}

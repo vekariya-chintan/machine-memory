@@ -104,6 +104,18 @@ export interface VerificationMedia {
   video_note?: string;
 }
 
+export interface IncidentTelemetry {
+  telemetry_id: string;
+  incident_id: string;
+  machine_id: string;
+  file_name?: string;
+  raw_csv?: string;
+  rows: SensorReading[];
+  total_records?: number;
+  time_range?: { start: string; end: string };
+  created_at?: string;
+}
+
 export interface Incident {
   incident_id: string;
   date: string;
@@ -113,6 +125,7 @@ export interface Incident {
   repair: string;
   downtime: number; // in minutes
   status: 'resolved' | 'investigating' | 'verified';
+  telemetry_id?: string;
   sensor_snapshot?: SensorReading[];
   ai_hypotheses?: DiagnosticHypothesis[];
   notes?: string;

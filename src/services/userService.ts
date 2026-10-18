@@ -80,13 +80,15 @@ export function validateUserForm(
     password?: string;
   },
   isEditMode: boolean,
-  existingUsers: User[] = []
+  existingUsers: User[] = [],
+  currentUserId?: string
 ): UserValidationResult {
   const errors: Record<string, string> = {};
 
   // 1. Validate ID
-  const rawId = (data.technician_id || '').trim();
+  const rawId = (data.technician_id || currentUserId || '').trim();
   const sanitizedId = sanitizeString(rawId).toUpperCase();
+  const targetUserId = (currentUserId || sanitizedId).trim().toUpperCase();
 
   if (!sanitizedId) {
     errors.technician_id = 'User ID is required.';
@@ -95,7 +97,7 @@ export function validateUserForm(
       'ID must be 3-25 characters: uppercase letters, numbers, hyphens, and underscores only (e.g., USR-05).';
   } else if (!isEditMode) {
     const isDuplicate = existingUsers.some(
-      (u) => u.technician_id.toUpperCase() === sanitizedId
+      (u) => u.technician_id.trim().toUpperCase() === sanitizedId
     );
     if (isDuplicate) {
       errors.technician_id = `User ID "${sanitizedId}" already exists.`;
@@ -130,14 +132,15 @@ export function validateUserForm(
   } else if (!EMAIL_REGEX.test(sanitizedEmail)) {
     errors.email = 'Please enter a valid email address (e.g. name@promptnova.com).';
   } else {
-    // Check for email collision with other users
-    const emailConflict = existingUsers.some(
-      (u) =>
-        u.email.toLowerCase() === sanitizedEmail &&
-        (!isEditMode || u.technician_id.toUpperCase() !== sanitizedId)
-    );
+    // Check for email collision with other users (ignoring current user being edited)
+    const emailConflict = existingUsers.some((u) => {
+      const uId = (u.technician_id || '').trim().toUpperCase();
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const isSameUser = isEditMode && (uId === targetUserId || uId === sanitizedId);
+      return uEmail === sanitizedEmail && !isSameUser;
+    });
     if (emailConflict) {
-      errors.email = 'This email is already registered to another user.';
+      errors.email = 'This email is already registered.';
     }
   }
 
@@ -216,13 +219,7 @@ export function validateUserForm(
 export async function fetchUsersFromDatabase(): Promise<User[]> {
   try {
     const userCol = collection(db, 'users');
-    let snap = await getDocs(userCol);
-
-    // Fallback to technicians collection if users is empty
-    if (snap.empty) {
-      const techCol = collection(db, 'technicians');
-      snap = await getDocs(techCol);
-    }
+    const snap = await getDocs(userCol);
 
     if (!snap.empty) {
       const users: User[] = snap.docs
@@ -268,7 +265,7 @@ export async function addUserToDatabase(
     password?: string;
   },
   existingUsers: User[] = []
-): Promise<{ success: boolean; user?: User; error?: string }> {
+): Promise<{ success: boolean; user?: User; technician?: User; error?: string }> {
   const validation = validateUserForm(formData, false, existingUsers);
   if (!validation.isValid) {
     const firstError = Object.values(validation.errors)[0];
@@ -321,6 +318,7 @@ export async function addUserToDatabase(
     return {
       success: true,
       user: createdUser,
+      technician: createdUser,
     };
   } catch (error: any) {
     console.error('Error saving user to database:', error);
@@ -347,8 +345,9 @@ export async function updateUserInDatabase(
     password?: string;
   },
   existingUsers: User[] = []
-): Promise<{ success: boolean; user?: User; error?: string }> {
-  const validation = validateUserForm(formData, true, existingUsers);
+): Promise<{ success: boolean; user?: User; technician?: User; error?: string }> {
+  const targetId = (userId || formData.technician_id || '').trim().toUpperCase();
+  const validation = validateUserForm(formData, true, existingUsers, targetId);
   if (!validation.isValid) {
     const firstError = Object.values(validation.errors)[0];
     return { success: false, error: firstError };
@@ -358,17 +357,18 @@ export async function updateUserInDatabase(
 
   try {
     try {
-      await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+      await fetch(`/api/users/${encodeURIComponent(targetId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...sanitized }),
+        body: JSON.stringify({ ...sanitized, technician_id: targetId }),
       });
     } catch (e) {
       console.warn('Backend server /api/users update note:', e);
     }
 
-    const docRef = doc(db, 'users', userId);
+    const docRef = doc(db, 'users', targetId);
     const updates: Record<string, any> = {
+      technician_id: targetId,
       name: sanitized.name,
       email: sanitized.email,
       role: sanitized.role,
@@ -386,7 +386,7 @@ export async function updateUserInDatabase(
     await setDoc(docRef, cleanFirestoreData(updates), { merge: true });
 
     const updatedUser: User = {
-      technician_id: userId,
+      technician_id: targetId,
       name: sanitized.name,
       email: sanitized.email,
       role: sanitized.role,
@@ -400,6 +400,7 @@ export async function updateUserInDatabase(
     return {
       success: true,
       user: updatedUser,
+      technician: updatedUser,
     };
   } catch (error: any) {
     console.error('Error updating user in database:', error);

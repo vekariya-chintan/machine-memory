@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RotateCcw, Plus, Activity, Lock, Radio, ShieldAlert, WifiOff, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Plus, Activity, Lock, Radio, ShieldAlert, WifiOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Header, PipelineStep, NavigationMode } from './components/Header';
 import { AudioCaptureCard } from './components/AudioCaptureCard';
 import { KnowledgeExtractionView } from './components/KnowledgeExtractionView';
@@ -24,8 +24,8 @@ import {
   updateMachineInFirestore,
   deleteMachineFromFirestore,
   addIncidentToFirestore,
-  getMachineDataset,
-  generateTelemetryFromExtraction,
+  saveIncidentTelemetryToFirestore,
+  fetchIncidentTelemetry,
 } from './services/machineMemoryService';
 import {
   testFirestoreConnection,
@@ -45,6 +45,26 @@ export default function App() {
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null);
   const [classifiedError, setClassifiedError] = useState<ClassifiedFirestoreError | null>(null);
   const [inAppNotification, setInAppNotification] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
+
+  // Auto scroll window to top & auto hide success message toast 4 seconds after displaying
+  useEffect(() => {
+    if (inAppNotification) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (inAppNotification.type === 'success') {
+        const timer = setTimeout(() => {
+          setInAppNotification(null);
+        }, 4000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [inAppNotification]);
+
+  // Auto scroll window to top when connectivity/permission error banner appears
+  useEffect(() => {
+    if (classifiedError) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [classifiedError]);
 
   // By default, Fleet dashboard displays general data of ALL assets ('ALL')
   const [activeMachineId, setActiveMachineId] = useState('ALL');
@@ -66,6 +86,7 @@ export default function App() {
   });
 
   // Workflow state (clean and empty by default for new incidents)
+  const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
   const [rawMemoText, setRawMemoText] = useState('');
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
   const [investigationTelemetry, setInvestigationTelemetry] = useState<{
@@ -73,6 +94,16 @@ export default function App() {
     csv: string;
     fileName?: string;
   } | null>(null);
+  const [closedInvestigationIds, setClosedInvestigationIds] = useState<Set<string>>(new Set());
+
+  const currentActiveIncident = (incidents || []).find((i) => i.incident_id === activeIncidentId);
+  const isInvestigationClosed = Boolean(
+    activeIncidentId && (
+      currentActiveIncident?.status === 'verified' ||
+      currentActiveIncident?.status === 'resolved' ||
+      closedInvestigationIds.has(activeIncidentId)
+    )
+  );
 
   // Lazy tab-based Firestore data loader - fetches ONLY required data for the active tab/page
   const loadDataForTab = async (mode: NavigationMode, step: PipelineStep) => {
@@ -204,6 +235,9 @@ export default function App() {
   // Human in the loop confirmation adds incident and resolution to state
   const handleLearningCommitted = (newIncident: Incident) => {
     setIncidents((prev) => [newIncident, ...prev.filter((i) => i.incident_id !== newIncident.incident_id)]);
+    if (newIncident.incident_id) {
+      setClosedInvestigationIds((prev) => new Set(prev).add(newIncident.incident_id));
+    }
   };
 
   // Handle adding new machine asset
@@ -310,6 +344,11 @@ export default function App() {
     memo: string,
     telemetry?: { rows: SensorReading[]; csv: string; fileName?: string }
   ) => {
+    if (isInvestigationClosed) {
+      setCurrentStep('extract');
+      return;
+    }
+
     setExtractionResult(result);
     setRawMemoText(memo);
     setInvestigationTelemetry(telemetry || null);
@@ -318,23 +357,40 @@ export default function App() {
     }
 
     // Persist incident investigation into Firestore
-    const newIncId = `INC-${Date.now().toString().slice(-4)}`;
-    const newIncident: Incident = {
-      incident_id: newIncId,
-      date: new Date().toISOString().split('T')[0],
+    // Reuse existing incident ID if already created or opened for this investigation
+    const targetIncId = activeIncidentId || `INC-${Date.now().toString().slice(-4)}`;
+    if (!activeIncidentId) {
+      setActiveIncidentId(targetIncId);
+    }
+
+    const existingIncident = incidents.find((i) => i.incident_id === targetIncId);
+
+    const updatedIncident: Incident = {
+      ...existingIncident,
+      incident_id: targetIncId,
+      telemetry_id: telemetry ? `TEL-${targetIncId}` : existingIncident?.telemetry_id,
+      date: existingIncident?.date || new Date().toISOString().split('T')[0],
       machine_id: result.machine_id,
-      symptom: result.symptoms?.[0] || 'Anomalous operational vibration',
-      cause: result.probable_root_cause || 'Under active investigation',
-      repair: result.recommended_inspection || 'Pending physical inspection',
-      downtime: Math.round((result.warmup_minutes || 15) * 1.5),
-      status: 'investigating',
+      symptom: result.symptoms?.[0] || existingIncident?.symptom || 'Anomalous operational vibration',
+      cause: result.probable_root_cause || existingIncident?.cause || 'Under active investigation',
+      repair: result.recommended_inspection || existingIncident?.repair || 'Pending physical inspection',
+      downtime: existingIncident?.downtime ?? Math.round((result.warmup_minutes || 15) * 1.5),
+      status: existingIncident?.status || 'investigating',
       notes: memo,
-      sensor_snapshot: telemetry?.rows,
+      sensor_snapshot: telemetry?.rows || existingIncident?.sensor_snapshot,
     };
 
     try {
-      await addIncidentToFirestore(newIncident);
-      setIncidents((prev) => [newIncident, ...prev.filter((i) => i.incident_id !== newIncId)]);
+      await addIncidentToFirestore(updatedIncident);
+      if (telemetry && telemetry.rows && telemetry.rows.length > 0) {
+        await saveIncidentTelemetryToFirestore(targetIncId, {
+          rows: telemetry.rows,
+          csv: telemetry.csv,
+          fileName: telemetry.fileName,
+          machineId: result.machine_id,
+        });
+      }
+      setIncidents((prev) => [updatedIncident, ...prev.filter((i) => i.incident_id !== targetIncId)]);
     } catch (err) {
       console.warn('Draft incident save note:', err);
     }
@@ -344,6 +400,7 @@ export default function App() {
 
   const handleResetDemo = () => {
     setActiveMachineId('ALL');
+    setActiveIncidentId(null);
     setRawMemoText('');
     setExtractionResult(null);
     setInvestigationTelemetry(null);
@@ -364,6 +421,7 @@ export default function App() {
   const handleStartNewInvestigation = (machId?: string) => {
     const targetId = machId && machId !== 'ALL' ? machId : 'M001';
     setActiveMachineId(targetId);
+    setActiveIncidentId(null);
     setRawMemoText('');
     setExtractionResult(null);
     setInvestigationTelemetry(null);
@@ -374,6 +432,10 @@ export default function App() {
 
   const handleOpenExistingInvestigation = (incident: Incident) => {
     setActiveMachineId(incident.machine_id);
+    setActiveIncidentId(incident.incident_id);
+    if (incident.status === 'verified' || incident.status === 'resolved') {
+      setClosedInvestigationIds((prev) => new Set(prev).add(incident.incident_id));
+    }
     const memo = incident.notes || (incident.symptom
       ? `Technician Incident Log [${incident.incident_id}]: Asset ${incident.machine_id} exhibited ${incident.symptom}. Confirmed root cause: ${incident.cause}. Corrective repair: ${incident.repair}.`
       : '');
@@ -397,18 +459,45 @@ export default function App() {
       },
     };
     setExtractionResult(extractedData);
-    if (incident.sensor_snapshot && incident.sensor_snapshot.length > 0) {
-      const csvHeader = 'timestamp,machine_id,temperature,vibration,rpm,power\n';
-      const csvBody = incident.sensor_snapshot
-        .map((r) => `${r.timestamp},${r.machine_id},${r.temperature},${r.vibration},${r.rpm},${r.power}`)
-        .join('\n');
-      setInvestigationTelemetry({
-        rows: incident.sensor_snapshot,
-        csv: csvHeader + csvBody,
-        fileName: `${incident.incident_id}_telemetry.csv`,
+    // Query real telemetry from Firebase incident_telemetry collection, with fallback to snapshot
+    if (incident.incident_id) {
+      fetchIncidentTelemetry(incident.incident_id).then((tel) => {
+        if (tel && tel.rows && tel.rows.length > 0) {
+          setInvestigationTelemetry({
+            rows: tel.rows,
+            csv: tel.raw_csv || '',
+            fileName: tel.file_name || `${incident.incident_id}_telemetry.csv`,
+          });
+        } else if (incident.sensor_snapshot && incident.sensor_snapshot.length > 0) {
+          const csvHeader = 'timestamp,machine_id,temperature,vibration,rpm,power\n';
+          const csvBody = incident.sensor_snapshot
+            .map((r) => `${r.timestamp},${r.machine_id},${r.temperature},${r.vibration},${r.rpm},${r.power}`)
+            .join('\n');
+          setInvestigationTelemetry({
+            rows: incident.sensor_snapshot,
+            csv: csvHeader + csvBody,
+            fileName: `${incident.incident_id}_telemetry.csv`,
+          });
+        } else {
+          setInvestigationTelemetry(null);
+        }
+      }).catch(() => {
+        if (incident.sensor_snapshot && incident.sensor_snapshot.length > 0) {
+          const csvHeader = 'timestamp,machine_id,temperature,vibration,rpm,power\n';
+          const csvBody = incident.sensor_snapshot
+            .map((r) => `${r.timestamp},${r.machine_id},${r.temperature},${r.vibration},${r.rpm},${r.power}`)
+            .join('\n');
+          setInvestigationTelemetry({
+            rows: incident.sensor_snapshot,
+            csv: csvHeader + csvBody,
+            fileName: `${incident.incident_id}_telemetry.csv`,
+          });
+        } else {
+          setInvestigationTelemetry(null);
+        }
       });
     } else {
-      setInvestigationTelemetry(generateTelemetryFromExtraction(extractedData, targetMach));
+      setInvestigationTelemetry(null);
     }
     setCurrentStep('capture');
     setInvestigationSubView('workflow');
@@ -418,6 +507,7 @@ export default function App() {
   const handleStartInvestigation = (machineId?: string, step?: PipelineStep) => {
     const targetId = machineId && machineId !== 'ALL' ? machineId : 'M001';
     setActiveMachineId(targetId);
+    setActiveIncidentId(null);
     setRawMemoText('');
     setExtractionResult(null);
     setInvestigationTelemetry(null);
@@ -625,7 +715,7 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <button
                     onClick={() => setInvestigationSubView('list')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold transition-colors shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold transition-colors shadow-sm cursor-pointer"
                     title="Return to the full list of all investigations"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
@@ -642,17 +732,24 @@ export default function App() {
                   <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold uppercase">
                     {currentStep}
                   </span>
-                  <button
-                    onClick={() => {
-                      handleSelectMachineId(activeMachineIdResolved);
-                      setCurrentStep('capture');
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors ml-1 cursor-pointer"
-                    title="Reset to step 1"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>RESTART</span>
-                  </button>
+                  {isInvestigationClosed ? (
+                    <span className="px-2.5 py-1 rounded bg-emerald-950/90 border border-emerald-700/80 text-emerald-300 font-bold text-[10px] tracking-wider uppercase ml-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      CLOSED &amp; LOCKED
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        handleSelectMachineId(activeMachineIdResolved);
+                        setCurrentStep('capture');
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors ml-1 cursor-pointer"
+                      title="Reset to step 1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>RESTART</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -661,11 +758,14 @@ export default function App() {
                 <AudioCaptureCard
                   onExtractionComplete={handleExtractionComplete}
                   onProceed={() => setCurrentStep('extract')}
+                  onBack={() => setInvestigationSubView('list')}
                   initialText={rawMemoText}
                   activeMachineId={activeMachineIdResolved}
                   machineName={activeMachineNameResolved}
                   incidents={incidents}
                   knowledgeEntries={knowledge}
+                  isReadOnly={isInvestigationClosed}
+                  initialTelemetry={investigationTelemetry}
                 />
               )}
 
@@ -676,6 +776,8 @@ export default function App() {
                     extraction={extractionResult}
                     rawText={rawMemoText}
                     onProceed={() => setCurrentStep('telemetry')}
+                    onBack={() => setCurrentStep('capture')}
+                    isReadOnly={isInvestigationClosed}
                   />
                 ) : (
                   <div className="bg-slate-900/90 border border-amber-800/80 rounded-xl p-8 text-center space-y-4 shadow-xl">
@@ -692,7 +794,7 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setCurrentStep('capture')}
-                      className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-colors shadow-md"
+                      className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono transition-colors shadow-md cursor-pointer"
                     >
                       ← RETURN TO STEP 1 (INCIDENT REPORT)
                     </button>
@@ -704,10 +806,14 @@ export default function App() {
               {currentStep === 'telemetry' && (
                 <SensorTelemetryChart
                   onProceed={() => setCurrentStep('retrieve')}
+                  onBack={() => setCurrentStep('extract')}
                   activeMachineId={activeMachineIdResolved}
+                  activeIncidentId={activeIncidentId || undefined}
                   machine={activeMachine || undefined}
                   extraction={extractionResult || undefined}
                   telemetry={investigationTelemetry || undefined}
+                  isReadOnly={isInvestigationClosed}
+                  onTelemetryUpdated={(tel) => setInvestigationTelemetry(tel)}
                 />
               )}
 
@@ -717,6 +823,8 @@ export default function App() {
                   incidents={incidents}
                   knowledge={knowledge}
                   onProceed={() => setCurrentStep('investigate')}
+                  onBack={() => setCurrentStep('telemetry')}
+                  activeIncidentId={activeIncidentId}
                   activeMachineId={activeMachineIdResolved}
                   extraction={extractionResult || undefined}
                 />
@@ -726,9 +834,11 @@ export default function App() {
               {currentStep === 'investigate' && (
                 <RootCauseInvestigator
                   onProceedToVerification={() => setCurrentStep('learn')}
+                  onBack={() => setCurrentStep('retrieve')}
                   activeMachineId={activeMachineIdResolved}
                   machine={activeMachine || undefined}
                   extraction={extractionResult || undefined}
+                  isReadOnly={isInvestigationClosed}
                 />
               )}
 
@@ -741,13 +851,17 @@ export default function App() {
                   onViewAllMemory={() => {
                     setInvestigationSubView('list');
                   }}
+                  onBack={() => setCurrentStep('investigate')}
+                  activeIncidentId={activeIncidentId}
                   activeMachineId={activeMachineIdResolved}
                   machine={activeMachine || undefined}
                   extraction={extractionResult || undefined}
                   onStartNewInvestigation={() => {
-                    setCurrentStep('capture');
+                    handleStartNewInvestigation(activeMachineIdResolved);
                   }}
                   authenticatedTechnician={authenticatedTechnician}
+                  isReadOnly={isInvestigationClosed}
+                  existingIncident={currentActiveIncident}
                 />
               )}
             </div>

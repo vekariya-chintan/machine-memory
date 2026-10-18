@@ -23,6 +23,8 @@ import {
 import { Incident, Machine } from '../types/industrial';
 import { SearchableDropdown, DropdownOption } from './SearchableDropdown';
 import { fetchIncidentsPage } from '../services/machineMemoryService';
+import { ShaftRunoutVideoViewer } from './ShaftRunoutVideoViewer';
+import { VoiceMemoAudioViewer } from './VoiceMemoAudioViewer';
 import { DocumentSnapshot } from 'firebase/firestore';
 
 interface InvestigationsListViewProps {
@@ -594,31 +596,33 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
               )}
 
             {/* Video */}
-            {selectedProofIncident.verification_media.video_url && (
+            {(selectedProofIncident.verification_media.video_url || selectedProofIncident.verification_media.video_note) && (
               <div className="space-y-2">
-                <span className="text-purple-400 font-bold block flex items-center gap-1.5">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
                   <Video className="w-3.5 h-3.5" />
                   SHAFT RUNOUT VIDEO CLIP:
                 </span>
-                <video
-                  src={selectedProofIncident.verification_media.video_url}
-                  controls
-                  className="w-full h-44 bg-black rounded-lg border border-slate-800 object-cover"
+                <ShaftRunoutVideoViewer
+                  videoUrl={selectedProofIncident.verification_media.video_url}
+                  videoNote={selectedProofIncident.verification_media.video_note}
+                  assetId={selectedProofIncident.machine_id}
+                  isReadOnly={true}
                 />
               </div>
             )}
 
             {/* Audio */}
-            {selectedProofIncident.verification_media.audio_url && (
+            {(selectedProofIncident.verification_media.audio_url || selectedProofIncident.verification_media.audio_note) && (
               <div className="space-y-2">
-                <span className="text-emerald-400 font-bold block flex items-center gap-1.5">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
                   <Mic className="w-3.5 h-3.5" />
                   TECHNICIAN VOICE SIGN-OFF MEMO:
                 </span>
-                <audio
-                  src={selectedProofIncident.verification_media.audio_url}
-                  controls
-                  className="w-full h-9 bg-slate-950 rounded border border-slate-800"
+                <VoiceMemoAudioViewer
+                  audioUrl={selectedProofIncident.verification_media.audio_url}
+                  audioNote={selectedProofIncident.verification_media.audio_note}
+                  assetId={selectedProofIncident.machine_id}
+                  isReadOnly={true}
                 />
               </div>
             )}

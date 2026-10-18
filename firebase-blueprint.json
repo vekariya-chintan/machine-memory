@@ -71,24 +71,21 @@
       },
       "required": ["evidence_id", "incident_id"]
     },
-    "technicians": {
-      "title": "Technician",
-      "description": "Shop floor technician identity, qualifications, and encrypted authentication credentials",
+    "incident_telemetry": {
+      "title": "IncidentTelemetry",
+      "description": "Raw and parsed CSV telemetry datasets linked directly to incident investigations",
       "type": "object",
       "properties": {
-        "technician_id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "password_hash": { "type": "string" },
-        "encrypted_password": { "type": "string" },
-        "role": { "type": "string" },
-        "role_id": { "type": "string" },
-        "skills": { "type": "array" },
-        "experience": { "type": "number" },
-        "shift": { "type": "string" },
-        "last_login": { "type": "string" }
+        "telemetry_id": { "type": "string" },
+        "incident_id": { "type": "string" },
+        "machine_id": { "type": "string" },
+        "file_name": { "type": "string" },
+        "raw_csv": { "type": "string" },
+        "rows": { "type": "array" },
+        "total_records": { "type": "number" },
+        "created_at": { "type": "string" }
       },
-      "required": ["technician_id", "email"]
+      "required": ["telemetry_id", "incident_id", "machine_id"]
     },
     "users": {
       "title": "User",
@@ -125,10 +122,6 @@
     "/evidence/{evidenceId}": {
       "schema": "evidence",
       "description": "Investigation evidence records"
-    },
-    "/technicians/{technicianId}": {
-      "schema": "technicians",
-      "description": "Plant technicians directory"
     },
     "/users/{userId}": {
       "schema": "users",

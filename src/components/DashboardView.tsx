@@ -980,7 +980,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button
               onClick={() => onStartInvestigation(selectedMachineId, 'telemetry')}
-              className="flex items-center justify-center gap-2 px-4 py-2 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs font-mono transition-all shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs font-mono transition-all shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.3)] cursor-pointer"
             >
               <span>INSPECT SENSOR CSV ({selectedMachineId})</span>
               <ArrowRight className="w-3.5 h-3.5" />

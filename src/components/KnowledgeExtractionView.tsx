@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   BrainCircuit,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   Wrench,
   AlertOctagon,
   ArrowRight,
+  ArrowLeft,
   Database,
 } from 'lucide-react';
 import { ExtractionResult } from '../types/industrial';
@@ -16,12 +17,16 @@ interface KnowledgeExtractionViewProps {
   extraction: ExtractionResult;
   rawText: string;
   onProceed: () => void;
+  onBack?: () => void;
+  isReadOnly?: boolean;
 }
 
 export const KnowledgeExtractionView: React.FC<KnowledgeExtractionViewProps> = ({
   extraction,
   rawText,
   onProceed,
+  onBack,
+  isReadOnly = false,
 }) => {
 
   return (
@@ -141,13 +146,25 @@ export const KnowledgeExtractionView: React.FC<KnowledgeExtractionViewProps> = (
         <div className="text-xs font-mono text-slate-400">
           Knowledge is recorded. Proceed to ingest the incident sensor telemetry.
         </div>
-        <button
-          onClick={onProceed}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-        >
-          <span>PROCEED TO SENSOR CSV TELEMETRY</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs font-mono transition-all cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>BACK</span>
+            </button>
+          )}
+          <button
+            onClick={onProceed}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer shrink-0"
+          >
+            <span>PROCEED TO SENSOR CSV TELEMETRY</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

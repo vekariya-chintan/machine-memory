@@ -643,6 +643,90 @@ app.post('/api/auth/logout', (_req: Request, res: Response) => {
   return res.json({ success: true });
 });
 
+// GET /api/users - List users
+app.get('/api/users', (_req: Request, res: Response) => {
+  const safeUsers = TECHNICIANS_REGISTRY.map(({ password_hash, ...u }) => u);
+  return res.json({ success: true, users: safeUsers });
+});
+
+// POST /api/users - Create/register user
+app.post('/api/users', (req: Request, res: Response) => {
+  const { technician_id, name, email, role, shift, experience, skills, password } = req.body || {};
+  if (!technician_id || !name || !email) {
+    return res.status(400).json({ success: false, error: 'Missing required user fields.' });
+  }
+
+  const id = String(technician_id).trim().toUpperCase();
+  const existingIdx = TECHNICIANS_REGISTRY.findIndex((t) => t.technician_id === id);
+
+  const password_hash = password && String(password).trim()
+    ? crypto.createHash('sha256').update(String(password).trim()).digest('hex')
+    : DEFAULT_TECH_PASSWORD_HASH;
+
+  const newUser: ServerTechnician = {
+    technician_id: id,
+    name: String(name).trim(),
+    email: String(email).trim().toLowerCase(),
+    role: String(role || 'Maintenance Specialist').trim(),
+    shift: String(shift || 'Day Shift').trim(),
+    experience: Number(experience || 0),
+    skills: Array.isArray(skills) ? skills : [],
+    password_hash,
+    last_login: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    TECHNICIANS_REGISTRY[existingIdx] = newUser;
+  } else {
+    TECHNICIANS_REGISTRY.push(newUser);
+  }
+
+  const { password_hash: _, ...safeUser } = newUser;
+  return res.json({ success: true, user: safeUser });
+});
+
+// PUT /api/users/:id - Update user
+app.put('/api/users/:id', (req: Request, res: Response) => {
+  const targetId = decodeURIComponent(req.params.id || '').trim().toUpperCase();
+  const { name, email, role, shift, experience, skills, password } = req.body || {};
+
+  const existingIdx = TECHNICIANS_REGISTRY.findIndex((t) => t.technician_id === targetId);
+  const password_hash = password && String(password).trim()
+    ? crypto.createHash('sha256').update(String(password).trim()).digest('hex')
+    : existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].password_hash : DEFAULT_TECH_PASSWORD_HASH;
+
+  const updatedUser: ServerTechnician = {
+    technician_id: targetId,
+    name: name ? String(name).trim() : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].name : 'User'),
+    email: email ? String(email).trim().toLowerCase() : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].email : ''),
+    role: role ? String(role).trim() : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].role : 'Maintenance Specialist'),
+    shift: shift ? String(shift).trim() : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].shift : 'Day Shift'),
+    experience: experience !== undefined ? Number(experience) : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].experience : 0),
+    skills: Array.isArray(skills) ? skills : (existingIdx >= 0 ? TECHNICIANS_REGISTRY[existingIdx].skills : []),
+    password_hash,
+    last_login: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    TECHNICIANS_REGISTRY[existingIdx] = updatedUser;
+  } else {
+    TECHNICIANS_REGISTRY.push(updatedUser);
+  }
+
+  const { password_hash: _, ...safeUser } = updatedUser;
+  return res.json({ success: true, user: safeUser });
+});
+
+// DELETE /api/users/:id - Delete user
+app.delete('/api/users/:id', (req: Request, res: Response) => {
+  const targetId = decodeURIComponent(req.params.id || '').trim().toUpperCase();
+  const existingIdx = TECHNICIANS_REGISTRY.findIndex((t) => t.technician_id === targetId);
+  if (existingIdx >= 0) {
+    TECHNICIANS_REGISTRY.splice(existingIdx, 1);
+  }
+  return res.json({ success: true });
+});
+
 // Production Static Serving
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));

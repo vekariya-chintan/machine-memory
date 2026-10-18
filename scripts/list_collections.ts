@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, listCollections } from 'firebase/firestore';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
 async function listAllCollections() {
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID;

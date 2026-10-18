@@ -2,10 +2,12 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
   deleteDoc,
   updateDoc,
   query,
+  where,
   orderBy,
   limit,
   startAfter,
@@ -20,12 +22,12 @@ import {
   EvidenceItem,
   SensorReading,
   ExtractionResult,
+  IncidentTelemetry,
 } from '../types/industrial';
 import {
   SEED_MACHINES,
   SEED_INCIDENTS,
   SEED_KNOWLEDGE,
-  SEED_TECHNICIANS,
   SEED_EVIDENCE,
 } from '../db/seedData';
 import { initializeMasterTables } from './masterDataService';
@@ -78,47 +80,38 @@ export async function clearAndResetFleetToM001(): Promise<void> {
       await deleteDoc(d.ref);
     }
 
-    // 4. Technicians are securely stored and managed server-side
+    // Explicitly delete all legacy documents in 'technicians' collection if present
     try {
       const techSnap = await getDocs(collection(db, 'technicians'));
       for (const d of techSnap.docs) {
         await deleteDoc(d.ref);
       }
-    } catch {
-      // Ignored: technicians collection is secured against client-side writes
+    } catch (e) {
+      // Ignored
     }
 
-    // 5. Delete all existing documents in 'evidence'
+    // 4. Delete all existing documents in 'evidence'
     const eviSnap = await getDocs(collection(db, 'evidence'));
     for (const d of eviSnap.docs) {
       await deleteDoc(d.ref);
     }
 
-    // 6. Seed fresh 5 machines (M001 through M005)
+    // 5. Seed fresh 5 machines (M001 through M005)
     for (const m of SEED_MACHINES) {
       await setDoc(doc(db, 'machines', m.machine_id), cleanFirestoreData(m));
     }
 
-    // 7. Seed fresh incidents for M001-M005
+    // 6. Seed fresh incidents for M001-M005
     for (const inc of SEED_INCIDENTS) {
       await setDoc(doc(db, 'incidents', inc.incident_id), cleanFirestoreData(inc));
     }
 
-    // 8. Seed fresh knowledge entries for M001-M005
+    // 7. Seed fresh knowledge entries for M001-M005
     for (const k of SEED_KNOWLEDGE) {
       await setDoc(doc(db, 'knowledge', k.knowledge_id), cleanFirestoreData(k));
     }
 
-    // 9. Technicians directory stored directly in central database
-    try {
-      for (const t of SEED_TECHNICIANS) {
-        await setDoc(doc(db, 'technicians', t.technician_id), cleanFirestoreData(t));
-      }
-    } catch (e) {
-      console.warn('Technicians collection initialization warning:', e);
-    }
-
-    // 10. Seed evidence
+    // 8. Seed evidence
     for (const e of SEED_EVIDENCE) {
       await setDoc(doc(db, 'evidence', e.evidence_id), cleanFirestoreData(e));
     }
@@ -131,8 +124,8 @@ export async function clearAndResetFleetToM001(): Promise<void> {
 }
 
 /**
- * Executes the entire Firebase blueprint by establishing and seeding the 5 core collections:
- * 'machines', 'incidents', 'knowledge', 'evidence', 'technicians'
+ * Executes the entire Firebase blueprint by establishing and seeding the core collections:
+ * 'machines', 'incidents', 'knowledge', 'evidence', 'users'
  */
 export async function executeFirebaseBlueprint(): Promise<{
   success: boolean;
@@ -142,13 +135,12 @@ export async function executeFirebaseBlueprint(): Promise<{
   await clearAndResetFleetToM001();
   return {
     success: true,
-    collectionsCreated: ['machines', 'incidents', 'knowledge', 'evidence', 'technicians'],
+    collectionsCreated: ['machines', 'incidents', 'knowledge', 'evidence', 'users'],
     counts: {
       machines: SEED_MACHINES.length,
       incidents: SEED_INCIDENTS.length,
       knowledge: SEED_KNOWLEDGE.length,
       evidence: SEED_EVIDENCE.length,
-      technicians: SEED_TECHNICIANS.length,
     },
   };
 }
@@ -495,10 +487,91 @@ export async function addIncidentToFirestore(incident: Incident): Promise<Incide
 }
 
 /**
+ * Persist raw CSV and parsed sensor telemetry records into Firebase Firestore `incident_telemetry` collection
+ * and link directly to the target incident investigation.
+ */
+export async function saveIncidentTelemetryToFirestore(
+  incidentId: string,
+  payload: {
+    rows: SensorReading[];
+    csv?: string;
+    fileName?: string;
+    machineId?: string;
+  }
+): Promise<IncidentTelemetry> {
+  const telemetryId = `TEL-${incidentId}`;
+  const telemetryRecord: IncidentTelemetry = {
+    telemetry_id: telemetryId,
+    incident_id: incidentId,
+    machine_id: payload.machineId || 'M001',
+    file_name: payload.fileName || `${incidentId}_telemetry.csv`,
+    raw_csv: payload.csv || '',
+    rows: payload.rows,
+    total_records: payload.rows.length,
+    time_range: {
+      start: payload.rows[0]?.timestamp || '',
+      end: payload.rows[payload.rows.length - 1]?.timestamp || '',
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  // 1. Save dedicated telemetry dataset in incident_telemetry collection
+  await setDoc(
+    doc(db, 'incident_telemetry', telemetryId),
+    cleanFirestoreData(telemetryRecord),
+    { merge: true }
+  );
+  console.log(`Telemetry [${telemetryId}] for incident [${incidentId}] persisted in Firestore /incident_telemetry (${payload.rows.length} rows).`);
+
+  // 2. Link telemetry_id and sensor snapshot to the incidents collection record
+  try {
+    await setDoc(
+      doc(db, 'incidents', incidentId),
+      cleanFirestoreData({
+        telemetry_id: telemetryId,
+        sensor_snapshot: payload.rows.slice(0, 100), // maintain quick snapshot
+      }),
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn(`Note updating incident [${incidentId}] with telemetry link:`, err);
+  }
+
+  return telemetryRecord;
+}
+
+/**
+ * Fetch linked sensor telemetry from Firebase Firestore `incident_telemetry` table for a specific incident
+ */
+export async function fetchIncidentTelemetry(incidentId: string): Promise<IncidentTelemetry | null> {
+  if (!incidentId) return null;
+  try {
+    const telemetryId = `TEL-${incidentId}`;
+    const directDoc = await getDoc(doc(db, 'incident_telemetry', telemetryId));
+    if (directDoc.exists()) {
+      return directDoc.data() as IncidentTelemetry;
+    }
+
+    // Secondary fallback: query by incident_id field
+    const q = query(collection(db, 'incident_telemetry'), where('incident_id', '==', incidentId));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data() as IncidentTelemetry;
+    }
+  } catch (err) {
+    console.warn(`Could not load telemetry for incident [${incidentId}] from Firestore:`, err);
+  }
+  return null;
+}
+
+/**
  * Delete an incident from Central Database
  */
 export async function deleteIncidentFromFirestore(incidentId: string): Promise<void> {
   await deleteDoc(doc(db, 'incidents', incidentId));
+  try {
+    await deleteDoc(doc(db, 'incident_telemetry', `TEL-${incidentId}`));
+  } catch (e) {}
 }
 
 /**
@@ -514,12 +587,14 @@ export async function saveVerifiedResolutionToFirestore(params: {
   verified_by: string;
   outcome?: string;
   verification_media?: import('../types/industrial').VerificationMedia;
+  symptom?: string;
+  sensor_snapshot?: SensorReading[];
 }): Promise<Incident> {
   const updatedIncident: Incident = {
     incident_id: params.incident_id,
     date: new Date().toISOString().split('T')[0],
     machine_id: params.machine_id,
-    symptom: 'vibration onset after warmup',
+    symptom: params.symptom || 'vibration onset after warmup',
     cause: params.confirmed_cause,
     repair: params.repair,
     downtime: params.downtime,
@@ -528,10 +603,11 @@ export async function saveVerifiedResolutionToFirestore(params: {
     verified_by: params.verified_by,
     outcome: params.outcome || 'Production restored to nominal ISO 10816-3 baseline; avoided wasteful component teardown',
     verification_media: params.verification_media,
+    sensor_snapshot: params.sensor_snapshot,
   };
 
   // 1. Commit incident update to database
-  await setDoc(doc(db, 'incidents', params.incident_id), cleanFirestoreData(updatedIncident));
+  await setDoc(doc(db, 'incidents', params.incident_id), cleanFirestoreData(updatedIncident), { merge: true });
 
   // 2. Commit closed-loop learning post-mortem to database knowledge base
   const postMortemKnowledge: KnowledgeItem = {
@@ -598,7 +674,7 @@ export async function fetchEvidence(): Promise<EvidenceItem[]> {
  */
 export async function fetchTechnicians(): Promise<Technician[]> {
   try {
-    const snap = await getDocs(collection(db, 'technicians'));
+    const snap = await getDocs(collection(db, 'users'));
     if (!snap.empty) {
       const sanitized = snap.docs
         .map((d) => {
@@ -606,7 +682,7 @@ export async function fetchTechnicians(): Promise<Technician[]> {
           if (!data) return null;
           return {
             technician_id: String(data.technician_id || d.id),
-            name: data.name || 'Technician',
+            name: data.name || 'User',
             email: String(data.email || `${d.id.toLowerCase()}@promptnova.com`),
             role: data.role || 'Maintenance Specialist',
             skills: Array.isArray(data.skills) ? data.skills : [],
@@ -621,7 +697,7 @@ export async function fetchTechnicians(): Promise<Technician[]> {
       return sanitized;
     }
   } catch (err) {
-    console.warn('Central database fetchTechnicians failed (no local fallback):', err);
+    console.warn('Central database fetchUsers failed:', err);
     throw err;
   }
   return [];

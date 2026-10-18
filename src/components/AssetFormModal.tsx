@@ -78,6 +78,14 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const modalRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto scroll modal to top when error message is displayed
+  useEffect(() => {
+    if (errorMsg) {
+      modalRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [errorMsg]);
 
   // Sync state when modal opens or initialMachine changes
   useEffect(() => {
@@ -394,7 +402,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
+      <div ref={modalRef} className="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2.5">

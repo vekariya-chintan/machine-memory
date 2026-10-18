@@ -14,8 +14,8 @@ import {
   SEED_INCIDENTS,
   SEED_KNOWLEDGE,
   SEED_USERS,
-  SEED_TECHNICIANS,
   SEED_EVIDENCE,
+  SEED_INCIDENT_TELEMETRY,
 } from '../src/db/seedData.js';
 
 /**
@@ -172,6 +172,7 @@ async function runSeeder() {
       'master_knowledge_types',
       'machines',
       'incidents',
+      'incident_telemetry',
       'knowledge',
       'users',
       'technicians',
@@ -246,6 +247,13 @@ async function runSeeder() {
       console.log(`     ✓ Incident [${incident.incident_id}] - ${incident.machine_id}`);
     }
 
+    // Seed Incident Telemetry Streams (Linked to Incidents)
+    console.log(`   Seeding incident_telemetry (${SEED_INCIDENT_TELEMETRY.length} multi-day datasets)...`);
+    for (const telemetry of SEED_INCIDENT_TELEMETRY) {
+      await setDoc(doc(db, 'incident_telemetry', telemetry.telemetry_id), telemetry);
+      console.log(`     ✓ Telemetry [${telemetry.telemetry_id}] - Incident ${telemetry.incident_id} (${telemetry.rows.length} 5-min intervals)`);
+    }
+
     // Seed Knowledge Items
     console.log(`   Seeding knowledge (${SEED_KNOWLEDGE.length} records)...`);
     for (const item of SEED_KNOWLEDGE) {
@@ -263,7 +271,6 @@ async function runSeeder() {
         created_at: new Date().toISOString(),
       };
       await setDoc(doc(db, 'users', user.technician_id), userPayload);
-      await setDoc(doc(db, 'technicians', user.technician_id), userPayload);
       console.log(`     ✓ User [${user.technician_id}] - ${user.name} (${user.email}) - ${user.role}`);
     }
 

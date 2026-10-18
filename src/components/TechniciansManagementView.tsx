@@ -16,13 +16,15 @@ import {
 } from 'lucide-react';
 import { Technician } from '../types/industrial';
 import {
-  fetchTechniciansFromDatabase,
-  addTechnicianToDatabase,
-  updateTechnicianInDatabase,
-  deleteTechnicianFromDatabase,
-} from '../services/technicianService';
+  fetchUsersFromDatabase as fetchTechniciansFromDatabase,
+  addUserToDatabase as addTechnicianToDatabase,
+  updateUserInDatabase as updateTechnicianInDatabase,
+  deleteUserFromDatabase as deleteTechnicianFromDatabase,
+} from '../services/userService';
 import { TechnicianFormModal } from './TechnicianFormModal';
 import { fetchMasterOptions } from '../services/masterDataService';
+
+import { saveActiveTechnicianSession } from '../services/authService';
 
 interface TechniciansManagementViewProps {
   authenticatedTechnician?: Technician | null;
@@ -210,10 +212,13 @@ export const TechniciansManagementView: React.FC<TechniciansManagementViewProps>
     // Update active session technician if editing current logged-in user
     if (
       authenticatedTechnician &&
-      authenticatedTechnician.technician_id === updatedTech.technician_id &&
-      onSessionTechnicianUpdated
+      (authenticatedTechnician.technician_id === updatedTech.technician_id ||
+        authenticatedTechnician.email.toLowerCase() === updatedTech.email.toLowerCase())
     ) {
-      onSessionTechnicianUpdated(updatedTech);
+      saveActiveTechnicianSession(updatedTech);
+      if (onSessionTechnicianUpdated) {
+        onSessionTechnicianUpdated(updatedTech);
+      }
     }
 
     if (onNotification) {

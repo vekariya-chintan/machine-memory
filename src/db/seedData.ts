@@ -1,4 +1,4 @@
-import { Machine, Incident, KnowledgeItem, User, Technician, EvidenceItem } from '../types/industrial';
+import { Machine, Incident, KnowledgeItem, User, EvidenceItem, IncidentTelemetry, SensorReading } from '../types/industrial';
 
 export interface MasterSeedOption {
   id: string;
@@ -308,6 +308,161 @@ export const SEED_MACHINES: Machine[] = [
   },
 ];
 
+/**
+ * Helper to generate realistic multi-day 5-minute CSV telemetry series
+ */
+function generateMultiDayTelemetry(params: {
+  incidentId: string;
+  machineId: string;
+  startDate: string; // e.g. "2026-09-08"
+  daysCount: number; // 7 days
+  intervalMins: number; // 5 mins
+  normalTemp: number; // 45.0
+  normalVib: number; // 1.15
+  isoLimit: number; // 2.2
+  peakVibDayIndex: number; // 6 (the 7th day)
+  peakVibHour: number; // 8
+  peakVib: number; // 2.85
+  ratedRpm: number; // 3000
+  basePower: number; // 15.0
+}): IncidentTelemetry {
+  const rows: SensorReading[] = [];
+  const startMoment = new Date(`${params.startDate}T00:00:00Z`);
+
+  for (let d = 0; d < params.daysCount; d++) {
+    const dayDate = new Date(startMoment.getTime() + d * 86400000);
+    const dateStr = dayDate.toISOString().split('T')[0];
+
+    // 288 points per day (24 * 60 / 5)
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += params.intervalMins) {
+        const hourStr = String(h).padStart(2, '0');
+        const minStr = String(m).padStart(2, '0');
+        const timeStamp = `${dateStr} ${hourStr}:${minStr}`;
+
+        // Baseline variation
+        const dayProgress = (h * 60 + m) / 1440;
+        const diurnalTemp = Math.sin(dayProgress * Math.PI) * 4.0;
+        let temp = params.normalTemp + diurnalTemp + (Math.sin((d * 24 + h) * 0.4) * 0.6);
+        let vib = params.normalVib + (Math.sin((d * 24 + h + m) * 0.25) * 0.1);
+        let rpm = params.ratedRpm + Math.round(Math.sin((h + m) * 0.2) * 5);
+        let power = params.basePower + (Math.sin(dayProgress * Math.PI) * 1.0);
+
+        // Breach day logic
+        if (d === params.peakVibDayIndex) {
+          if (h === params.peakVibHour) {
+            // Harmonic breach buildup
+            const progress = m / 60;
+            vib = params.normalVib + (params.peakVib - params.normalVib) * (0.3 + progress * 0.7);
+            temp += 12.0 * progress;
+            rpm -= Math.round(progress * 18);
+            power += 1.8 * progress;
+          } else if (h === params.peakVibHour + 1) {
+            // Sustained peak alarm
+            vib = params.peakVib - (m / 60) * 0.3;
+            temp += 10.0;
+            rpm -= 15;
+            power += 1.5;
+          } else if (h > params.peakVibHour + 1 && h < params.peakVibHour + 3) {
+            // Shutdown / Maintenance window
+            vib = 0.05;
+            rpm = 0;
+            power = 0.5;
+            temp -= 15;
+          } else if (h >= params.peakVibHour + 3) {
+            // Post-repair restored nominal
+            vib = 1.05;
+            temp = params.normalTemp + 0.8;
+            rpm = params.ratedRpm;
+            power = params.basePower;
+          }
+        }
+
+        rows.push({
+          timestamp: timeStamp,
+          minute: d * 1440 + h * 60 + m,
+          machine_id: params.machineId,
+          temperature: parseFloat(temp.toFixed(1)),
+          vibration: parseFloat(vib.toFixed(2)),
+          rpm: Math.max(0, rpm),
+          power: parseFloat(Math.max(0, power).toFixed(1)),
+        });
+      }
+    }
+  }
+
+  const csvHeader = 'timestamp,machine_id,temperature,vibration,rpm,power\n';
+  const csvBody = rows
+    .map((r) => `${r.timestamp},${r.machine_id},${r.temperature},${r.vibration},${r.rpm},${r.power}`)
+    .join('\n');
+
+  return {
+    telemetry_id: `TEL-${params.incidentId}`,
+    incident_id: params.incidentId,
+    machine_id: params.machineId,
+    file_name: `${params.machineId}_7day_telemetry_stream.csv`,
+    raw_csv: csvHeader + csvBody,
+    rows,
+    total_records: rows.length,
+    time_range: {
+      start: rows[0]?.timestamp || '',
+      end: rows[rows.length - 1]?.timestamp || '',
+    },
+    created_at: new Date().toISOString(),
+  };
+}
+
+export const SEED_INCIDENT_TELEMETRY: IncidentTelemetry[] = [
+  // INC-001-A: 7-day 5-minute telemetry stream for asset M001
+  generateMultiDayTelemetry({
+    incidentId: 'INC-001-A',
+    machineId: 'M001',
+    startDate: '2026-09-08',
+    daysCount: 7,
+    intervalMins: 5,
+    normalTemp: 45.0,
+    normalVib: 1.15,
+    isoLimit: 2.2,
+    peakVibDayIndex: 6, // 2026-09-14 (incident date)
+    peakVibHour: 8, // 08:00 AM breach
+    peakVib: 2.85,
+    ratedRpm: 3000,
+    basePower: 15.0,
+  }),
+  // INC-002-A: 3-day 5-minute telemetry stream for asset M002
+  generateMultiDayTelemetry({
+    incidentId: 'INC-002-A',
+    machineId: 'M002',
+    startDate: '2026-09-08',
+    daysCount: 3,
+    intervalMins: 5,
+    normalTemp: 52.0,
+    normalVib: 1.05,
+    isoLimit: 2.2,
+    peakVibDayIndex: 2, // 2026-09-10
+    peakVibHour: 10,
+    peakVib: 2.65,
+    ratedRpm: 1500,
+    basePower: 22.0,
+  }),
+  // INC-003-A: 2-day 5-minute telemetry stream for asset M003
+  generateMultiDayTelemetry({
+    incidentId: 'INC-003-A',
+    machineId: 'M003',
+    startDate: '2026-08-31',
+    daysCount: 2,
+    intervalMins: 5,
+    normalTemp: 58.0,
+    normalVib: 1.25,
+    isoLimit: 2.2,
+    peakVibDayIndex: 1, // 2026-09-01
+    peakVibHour: 14,
+    peakVib: 2.45,
+    ratedRpm: 750,
+    basePower: 18.5,
+  }),
+];
+
 export const SEED_INCIDENTS: Incident[] = [
   {
     incident_id: 'INC-001-A',
@@ -318,9 +473,25 @@ export const SEED_INCIDENTS: Incident[] = [
     repair: 'Replaced elastomer spider insert and re-aligned spindle motor coupling using laser metrology tool',
     downtime: 45,
     status: 'verified',
+    telemetry_id: 'TEL-INC-001-A',
+    sensor_snapshot: SEED_INCIDENT_TELEMETRY[0].rows,
     verified_by: 'Marcus Vance (Lead Tech)',
     outcome: 'Vibration dropped back to baseline 1.1 mm/s RMS. Prevented $42,000 spindle bearing catastrophic lockup.',
     notes: 'Technician Field Note [M001]: High harmonic vibration under full spindle warmup. Replaced flexible coupling spider insert rather than full spindle rebuild.',
+    verification_media: {
+      video_note: 'Shaft Runout Inspection Video Clip for M001: Dial indicator oscillation measured at 0.015mm post-alignment',
+      audio_note: 'Technician live voice sign-off on M001 physical verification: Spider insert replaced and radial runout aligned to 0.015mm.',
+      photos: [
+        {
+          id: 'PHOTO-001-A',
+          type: 'photo',
+          name: 'Coupling_Spider_Inspected.jpg',
+          caption: 'Physical inspection proof for M001: Degraded polyurethane elastomer spider insert',
+          timestamp: '09:45 AM',
+          url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><rect width="600" height="400" fill="%230b111e"/><rect x="20" y="20" width="560" height="360" rx="8" fill="%23131c2e" stroke="%23334155" stroke-width="2"/><circle cx="300" cy="200" r="120" fill="%231e293b" stroke="%2306b6d4" stroke-width="4"/><circle cx="300" cy="200" r="60" fill="%230f172a" stroke="%2394a3b8" stroke-width="3"/><path d="M 300 80 L 320 140 L 300 200 L 280 140 Z" fill="%23f59e0b"/><path d="M 300 320 L 320 260 L 300 200 L 280 260 Z" fill="%23f59e0b"/><path d="M 180 200 L 240 220 L 300 200 L 240 180 Z" fill="%23f59e0b"/><path d="M 420 200 L 360 220 L 300 200 L 360 180 Z" fill="%23ef4444"/><text x="300" y="55" font-family="monospace" font-size="14" font-weight="bold" fill="%2338bdf8" text-anchor="middle">PHYSICAL INSPECTION PROOF: COUPLING JAW SPIDER</text><text x="300" y="365" font-family="monospace" font-size="12" fill="%2394a3b8" text-anchor="middle">DIAL INDICATOR RADIAL RUNOUT: 0.14mm (SPEC &lt; 0.02mm) - SHREDDED 98A ELASTOMER</text><line x1="420" y1="200" x2="480" y2="150" stroke="%23ef4444" stroke-width="2"/><text x="485" y="145" font-family="monospace" font-size="11" font-weight="bold" fill="%23ef4444">SHREDDED JAW FRACTURE</text></svg>',
+        },
+      ],
+    },
   },
   {
     incident_id: 'INC-001-B',
@@ -344,6 +515,8 @@ export const SEED_INCIDENTS: Incident[] = [
     repair: 'Cleaned suction filter basket and flushed hydraulic reservoir fluid skid',
     downtime: 20,
     status: 'verified',
+    telemetry_id: 'TEL-INC-002-A',
+    sensor_snapshot: SEED_INCIDENT_TELEMETRY[1].rows,
     verified_by: 'Marcus Vance',
     outcome: 'Restored steady 210 bar line pressure',
     notes: 'Technician Note: Cavitation sound at pump intake. Suction strainer cleaned.',
@@ -357,6 +530,8 @@ export const SEED_INCIDENTS: Incident[] = [
     repair: 'Adjusted eccentric backlash preload collar and refilled ISO VG 220 gear oil',
     downtime: 60,
     status: 'investigating',
+    telemetry_id: 'TEL-INC-003-A',
+    sensor_snapshot: SEED_INCIDENT_TELEMETRY[2].rows,
     notes: 'Technician Note: C-axis positioning drift. Backlash adjusted via eccentric ring.',
   },
   {
@@ -400,6 +575,20 @@ export const SEED_KNOWLEDGE: KnowledgeItem[] = [
     confidence: 0.98,
     created_at: '2026-09-14T10:00:00Z',
     tags: ['coupling', 'vibration', 'spindle', 'ISO-10816', 'M001'],
+    media: {
+      video_note: 'Shaft Runout Inspection Video Clip for M001: Dial indicator oscillation measured at 0.015mm post-alignment',
+      audio_note: 'Technician live voice sign-off on M001 physical verification: Spider insert replaced and radial runout aligned to 0.015mm.',
+      photos: [
+        {
+          id: 'PHOTO-001-A',
+          type: 'photo',
+          name: 'Coupling_Spider_Inspected.jpg',
+          caption: 'Physical inspection proof for M001: Degraded polyurethane elastomer spider insert',
+          timestamp: '09:45 AM',
+          url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><rect width="600" height="400" fill="%230b111e"/><rect x="20" y="20" width="560" height="360" rx="8" fill="%23131c2e" stroke="%23334155" stroke-width="2"/><circle cx="300" cy="200" r="120" fill="%231e293b" stroke="%2306b6d4" stroke-width="4"/><circle cx="300" cy="200" r="60" fill="%230f172a" stroke="%2394a3b8" stroke-width="3"/><path d="M 300 80 L 320 140 L 300 200 L 280 140 Z" fill="%23f59e0b"/><path d="M 300 320 L 320 260 L 300 200 L 280 260 Z" fill="%23f59e0b"/><path d="M 180 200 L 240 220 L 300 200 L 240 180 Z" fill="%23f59e0b"/><path d="M 420 200 L 360 220 L 300 200 L 360 180 Z" fill="%23ef4444"/><text x="300" y="55" font-family="monospace" font-size="14" font-weight="bold" fill="%2338bdf8" text-anchor="middle">PHYSICAL INSPECTION PROOF: COUPLING JAW SPIDER</text><text x="300" y="365" font-family="monospace" font-size="12" fill="%2394a3b8" text-anchor="middle">DIAL INDICATOR RADIAL RUNOUT: 0.14mm (SPEC &lt; 0.02mm) - SHREDDED 98A ELASTOMER</text><line x1="420" y1="200" x2="480" y2="150" stroke="%23ef4444" stroke-width="2"/><text x="485" y="145" font-family="monospace" font-size="11" font-weight="bold" fill="%23ef4444">SHREDDED JAW FRACTURE</text></svg>',
+        },
+      ],
+    },
   },
   {
     knowledge_id: 'KNW-002',
@@ -548,12 +737,9 @@ export const SEED_USERS: User[] = [
     experience: 15,
     shift: 'Plant Operations & Engineering Leadership',
     shift_id: 'SHIFT_LEADERSHIP',
-    avatar_url: '',
     last_login: new Date().toISOString(),
   },
 ];
-
-export const SEED_TECHNICIANS: User[] = SEED_USERS;
 
 export const SEED_EVIDENCE: EvidenceItem[] = [
   {

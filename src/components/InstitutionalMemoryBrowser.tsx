@@ -19,10 +19,13 @@ import {
   X,
   Plus,
   Clock,
+  Maximize2,
 } from 'lucide-react';
 import { Machine, Incident, KnowledgeItem, VerificationMedia, Technician } from '../types/industrial';
 import { SearchableDropdown } from './SearchableDropdown';
 import { AddKnowledgeModal } from './AddKnowledgeModal';
+import { ShaftRunoutVideoViewer } from './ShaftRunoutVideoViewer';
+import { VoiceMemoAudioViewer } from './VoiceMemoAudioViewer';
 import { addKnowledgeToFirestore, fetchKnowledgePage, fetchIncidentsPage } from '../services/machineMemoryService';
 import { validateQueryInput } from '../lib/securityValidation';
 import { DocumentSnapshot } from 'firebase/firestore';
@@ -59,9 +62,18 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
   const lastQueryRef = useRef<{ key: string; answer: string } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedMediaIncident, setSelectedMediaIncident] = useState<Incident | null>(null);
+  const [selectedMediaKnowledge, setSelectedMediaKnowledge] = useState<KnowledgeItem | null>(null);
+  const [expandedKnowledgeMedia, setExpandedKnowledgeMedia] = useState<{ [id: string]: 'video' | 'audio' | null }>({});
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
   const [isAddKnowledgeModalOpen, setIsAddKnowledgeModalOpen] = useState(false);
   const [localKnowledge, setLocalKnowledge] = useState<KnowledgeItem[]>(propKnowledge || []);
+
+  const toggleKnowledgeMedia = (id: string, type: 'video' | 'audio') => {
+    setExpandedKnowledgeMedia((prev) => ({
+      ...prev,
+      [id]: prev[id] === type ? null : type,
+    }));
+  };
 
   // Server-side pagination state for Knowledge tab (5 records per page, latest at top)
   const [page, setPage] = useState<number>(1);
@@ -424,27 +436,107 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
 
                   {/* Verified Proof Attachments for Knowledge */}
                   {k.media && (
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-900 text-xs font-mono">
-                      <span className="text-slate-500 text-[11px] font-bold">VERIFIED PROOF:</span>
-                      {k.media.photos && k.media.photos.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-900 text-xs font-mono">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-slate-500 text-[11px] font-bold">VERIFIED PROOF:</span>
+                        {k.media.photos && k.media.photos.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setActivePhotoUrl(k.media?.photos?.[0]?.url || null)}
+                            className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                          >
+                            <Camera className="w-3 h-3 text-cyan-400" />
+                            <span>{k.media.photos.length} Verified Photos</span>
+                          </button>
+                        )}
+                        {(k.media.video_url || k.media.video_note) && (
+                          <button
+                            type="button"
+                            onClick={() => toggleKnowledgeMedia(k.knowledge_id, 'video')}
+                            className={`px-2 py-0.5 rounded border text-[11px] flex items-center gap-1 transition-colors cursor-pointer ${
+                              expandedKnowledgeMedia[k.knowledge_id] === 'video'
+                                ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400'
+                                : 'bg-cyan-950/70 border-cyan-800/70 text-cyan-300 hover:bg-cyan-900'
+                            }`}
+                            title="Play or close Shaft Runout Video Clip"
+                          >
+                            <Video className="w-3 h-3" />
+                            <span>Runout Video Clip</span>
+                          </button>
+                        )}
+                        {(k.media.audio_url || k.media.audio_note) && (
+                          <button
+                            type="button"
+                            onClick={() => toggleKnowledgeMedia(k.knowledge_id, 'audio')}
+                            className={`px-2 py-0.5 rounded border text-[11px] flex items-center gap-1 transition-colors cursor-pointer ${
+                              expandedKnowledgeMedia[k.knowledge_id] === 'audio'
+                                ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400'
+                                : 'bg-cyan-950/70 border-cyan-800/70 text-cyan-300 hover:bg-cyan-900'
+                            }`}
+                            title="Play or close Technician Voice Memo"
+                          >
+                            <Mic className="w-3 h-3" />
+                            <span>Audio Memo</span>
+                          </button>
+                        )}
                         <button
-                          onClick={() => setActivePhotoUrl(k.media?.photos?.[0]?.url || null)}
-                          className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/70 text-cyan-300 hover:bg-cyan-900 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+                          type="button"
+                          onClick={() => setSelectedMediaKnowledge(k)}
+                          className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-cyan-300 text-[11px] flex items-center gap-1 transition-colors cursor-pointer ml-auto"
+                          title="Open Full Screen Proof Viewer"
                         >
-                          <Camera className="w-3 h-3 text-cyan-400" />
-                          <span>{k.media.photos.length} Verified Photos</span>
+                          <Maximize2 className="w-3 h-3 text-cyan-400" />
+                          <span>PROOF VIEWER</span>
                         </button>
+                      </div>
+
+                      {/* Inline Expanded Video Clip */}
+                      {expandedKnowledgeMedia[k.knowledge_id] === 'video' && (
+                        <div className="bg-slate-900/80 border border-cyan-900/60 rounded-lg p-3 space-y-2 mt-2">
+                          <div className="flex items-center justify-between text-xs font-mono text-cyan-300 font-bold">
+                            <span className="flex items-center gap-1.5">
+                              <Video className="w-3.5 h-3.5 text-cyan-400" />
+                              SHAFT RUNOUT VIDEO CLIP ({k.machine_id})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleKnowledgeMedia(k.knowledge_id, 'video')}
+                              className="text-slate-400 hover:text-slate-200 text-[11px] cursor-pointer"
+                            >
+                              ✕ CLOSE
+                            </button>
+                          </div>
+                          <ShaftRunoutVideoViewer
+                            videoUrl={k.media.video_url}
+                            videoNote={k.media.video_note}
+                            assetId={k.machine_id}
+                            isReadOnly={true}
+                          />
+                        </div>
                       )}
-                      {k.media.video_url && (
-                        <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/70 text-purple-300 flex items-center gap-1 text-[11px] cursor-pointer">
-                          <Video className="w-3 h-3 text-purple-400" />
-                          <span>Runout Video Clip</span>
-                        </span>
-                      )}
-                      {k.media.audio_url && (
-                        <div className="flex items-center gap-2 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer">
-                          <Mic className="w-3 h-3 text-emerald-400" />
-                          <audio src={k.media.audio_url} controls className="h-6 w-32" />
+
+                      {/* Inline Expanded Audio Memo */}
+                      {expandedKnowledgeMedia[k.knowledge_id] === 'audio' && (
+                        <div className="bg-slate-900/80 border border-cyan-900/60 rounded-lg p-3 space-y-2 mt-2">
+                          <div className="flex items-center justify-between text-xs font-mono text-cyan-300 font-bold">
+                            <span className="flex items-center gap-1.5">
+                              <Mic className="w-3.5 h-3.5 text-cyan-400" />
+                              TECHNICIAN VOICE SIGN-OFF ({k.machine_id})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleKnowledgeMedia(k.knowledge_id, 'audio')}
+                              className="text-slate-400 hover:text-slate-200 text-[11px] cursor-pointer"
+                            >
+                              ✕ CLOSE
+                            </button>
+                          </div>
+                          <VoiceMemoAudioViewer
+                            audioUrl={k.media.audio_url}
+                            audioNote={k.media.audio_note}
+                            assetId={k.machine_id}
+                            isReadOnly={true}
+                          />
                         </div>
                       )}
                     </div>
@@ -664,24 +756,111 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
             )}
 
             {/* Video */}
-            {selectedMediaIncident.verification_media.video_url && (
+            {(selectedMediaIncident.verification_media.video_url || selectedMediaIncident.verification_media.video_note) && (
               <div className="space-y-2">
-                <span className="text-purple-400 font-bold block flex items-center gap-1.5">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
                   <Video className="w-3.5 h-3.5" />
                   SHAFT RUNOUT VIDEO CLIP:
                 </span>
-                <video src={selectedMediaIncident.verification_media.video_url} controls className="w-full h-40 bg-black rounded border border-slate-800 object-cover" />
+                <ShaftRunoutVideoViewer
+                  videoUrl={selectedMediaIncident.verification_media.video_url}
+                  videoNote={selectedMediaIncident.verification_media.video_note}
+                  assetId={selectedMediaIncident.machine_id}
+                  isReadOnly={true}
+                />
               </div>
             )}
 
             {/* Audio */}
-            {selectedMediaIncident.verification_media.audio_url && (
+            {(selectedMediaIncident.verification_media.audio_url || selectedMediaIncident.verification_media.audio_note) && (
               <div className="space-y-2">
-                <span className="text-emerald-400 font-bold block flex items-center gap-1.5">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
                   <Mic className="w-3.5 h-3.5" />
                   TECHNICIAN VOICE SIGN-OFF:
                 </span>
-                <audio src={selectedMediaIncident.verification_media.audio_url} controls className="w-full h-8" />
+                <VoiceMemoAudioViewer
+                  audioUrl={selectedMediaIncident.verification_media.audio_url}
+                  audioNote={selectedMediaIncident.verification_media.audio_note}
+                  assetId={selectedMediaIncident.machine_id}
+                  isReadOnly={true}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Proof Media Modal for Knowledge & Tips Item */}
+      {selectedMediaKnowledge && selectedMediaKnowledge.media && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-5 max-w-2xl w-full space-y-4 font-mono text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-slate-100 text-sm">
+                  VERIFIED PROOF MEDIA: {selectedMediaKnowledge.knowledge_id} ({selectedMediaKnowledge.machine_id})
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedMediaKnowledge(null)}
+                className="text-slate-400 hover:text-slate-100 px-2 py-1 rounded bg-slate-800 cursor-pointer"
+              >
+                ✕ CLOSE
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded border border-slate-800 space-y-1">
+              <div className="text-cyan-300 font-bold text-sm">{selectedMediaKnowledge.title}</div>
+              <div className="text-slate-300 text-[11px] leading-relaxed">{selectedMediaKnowledge.content}</div>
+              <div className="text-slate-500 text-[10px] pt-1">
+                Asset: <span className="text-slate-200 font-bold">{selectedMediaKnowledge.machine_id}</span> | Author: <span className="text-slate-300">{selectedMediaKnowledge.created_by || selectedMediaKnowledge.author || 'Technician'}</span>
+              </div>
+            </div>
+
+            {/* Photos */}
+            {selectedMediaKnowledge.media.photos && selectedMediaKnowledge.media.photos.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-slate-400 font-bold block">VERIFIED PHOTOS:</span>
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedMediaKnowledge.media.photos.map((p: any) => (
+                    <div key={p.id} className="bg-slate-950 rounded border border-slate-800 overflow-hidden cursor-pointer" onClick={() => setActivePhotoUrl(p.url)}>
+                      <img src={p.url} alt={p.name} className="w-full h-32 object-cover hover:opacity-90" />
+                      <div className="p-1.5 text-[10px] text-slate-400 truncate">{p.caption || p.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Video */}
+            {(selectedMediaKnowledge.media.video_url || selectedMediaKnowledge.media.video_note) && (
+              <div className="space-y-2">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
+                  <Video className="w-3.5 h-3.5" />
+                  SHAFT RUNOUT VIDEO CLIP:
+                </span>
+                <ShaftRunoutVideoViewer
+                  videoUrl={selectedMediaKnowledge.media.video_url}
+                  videoNote={selectedMediaKnowledge.media.video_note}
+                  assetId={selectedMediaKnowledge.machine_id}
+                  isReadOnly={true}
+                />
+              </div>
+            )}
+
+            {/* Audio */}
+            {(selectedMediaKnowledge.media.audio_url || selectedMediaKnowledge.media.audio_note) && (
+              <div className="space-y-2">
+                <span className="text-cyan-400 font-bold block flex items-center gap-1.5 font-mono text-xs">
+                  <Mic className="w-3.5 h-3.5" />
+                  TECHNICIAN VOICE SIGN-OFF:
+                </span>
+                <VoiceMemoAudioViewer
+                  audioUrl={selectedMediaKnowledge.media.audio_url}
+                  audioNote={selectedMediaKnowledge.media.audio_note}
+                  assetId={selectedMediaKnowledge.machine_id}
+                  isReadOnly={true}
+                />
               </div>
             )}
           </div>

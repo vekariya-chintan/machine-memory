@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 import { Technician } from '../types/industrial';
 import {
-  validateTechnicianForm,
+  validateUserForm as validateTechnicianForm,
   containsMaliciousPayload,
-} from '../services/technicianService';
+} from '../services/userService';
 import {
   fetchMasterOptions,
   addOrGetMasterOption,
@@ -105,6 +105,14 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  // Auto scroll modal form to top when errors are set
+  useEffect(() => {
+    if (generalError || Object.keys(errors).length > 0) {
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [generalError, errors]);
 
   // Fetch master dropdown values from Firebase whenever modal opens
   useEffect(() => {
@@ -338,7 +346,7 @@ export const TechnicianFormModal: React.FC<TechnicianFormModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {generalError && (
             <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-200 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
