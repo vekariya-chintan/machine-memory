@@ -482,7 +482,7 @@ export const AssetManagementView: React.FC<AssetManagementViewProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs font-mono">
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 text-xs font-mono">
             <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <button
               onClick={() => setSubsystemFilter('all')}

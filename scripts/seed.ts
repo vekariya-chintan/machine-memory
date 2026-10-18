@@ -158,7 +158,7 @@ async function runSeeder() {
     ? getFirestore(app, firestoreDatabaseId)
     : getFirestore(app);
 
-  const defaultPassword = process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || 'Pass@123#';
+  const defaultPassword = process.env.VITE_DEFAULT_TECHNICIAN_PASSWORD || '';
   const defaultPasswordHash = crypto.createHash('sha256').update(defaultPassword).digest('hex');
 
   try {

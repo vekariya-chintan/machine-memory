@@ -268,9 +268,9 @@ export const InvestigationsListView: React.FC<InvestigationsListViewProps> = ({
           </div>
 
           {/* Filters Row */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Status Filter Buttons */}
-            <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 font-mono text-xs">
+            <div className="flex flex-wrap sm:flex-nowrap items-center bg-slate-950 p-1 rounded-lg border border-slate-800 font-mono text-xs w-full sm:w-auto">
               <button
                 onClick={() => setStatusFilter('all')}
                 className={`px-2.5 py-1 rounded transition-colors ${

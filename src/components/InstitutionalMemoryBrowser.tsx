@@ -290,8 +290,8 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
       </div>
 
       {/* Tabs & Machine Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono border-b border-slate-800 pb-3">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded border border-slate-800 overflow-x-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono border-b border-slate-800 pb-3">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 p-1 bg-slate-950 rounded border border-slate-800 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('knowledge')}
             className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
@@ -326,7 +326,7 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
         </div>
 
         {activeTab !== 'query' && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {/* Searchable Machine Filter Dropdown */}
             <SearchableDropdown
               options={machines.map((m) => ({
@@ -344,16 +344,18 @@ export const InstitutionalMemoryBrowser: React.FC<InstitutionalMemoryBrowserProp
               allOptionValue="all"
               searchPlaceholder="Search plant assets..."
               placeholder="Select Asset..."
+              className="w-full sm:w-auto"
+              buttonClassName="w-full sm:w-auto"
             />
 
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
               <input
                 type="text"
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 w-36 sm:w-48"
+                className="bg-slate-950 border border-slate-800 rounded pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 w-full sm:w-48"
               />
             </div>
           </div>

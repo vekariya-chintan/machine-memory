@@ -97,9 +97,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Top Navbar Row */}
-        <div className="flex flex-row items-center justify-between py-2 sm:py-2.5 gap-2 sm:gap-3 border-b border-slate-900 flex-nowrap">
-          {/* Logo & Operational Subtitle */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 sm:py-2.5 gap-2 sm:gap-3 border-b border-slate-900">
+          {/* Logo & Operational Subtitle + Mobile Quick Actions Header */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
             <button
               onClick={() => onModeChange('dashboard')}
               className="flex items-center gap-2.5 text-left hover:opacity-95 transition-opacity group cursor-pointer"
@@ -132,33 +132,69 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-semibold text-slate-300 tracking-tight">INDUSTRIAL RELIABILITY &amp;</span>
               <span className="font-semibold text-slate-300 tracking-tight">INCIDENT INVESTIGATION ENGINE</span>
             </div>
+
+            {/* Mobile Quick Actions Header (Reset, Connected, Technician) */}
+            <div className="flex sm:hidden items-center gap-1.5 font-mono text-[11px] shrink-0">
+              <button
+                onClick={onReset}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
+                title="Reset walkthrough demonstration"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="text-[10px] font-bold">RESET</span>
+              </button>
+
+              <div
+                className="flex items-center gap-1 px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
+                title="Connection status"
+              >
+                <Database className={`w-3.5 h-3.5 shrink-0 ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
+              </div>
+
+              {authenticatedTechnician && (
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-600 to-purple-600 flex items-center justify-center font-bold text-[9px] text-white shrink-0">
+                    {authenticatedTechnician.name.slice(0, 1).toUpperCase()}
+                  </div>
+                  {onLogout && (
+                    <button
+                      onClick={onLogout}
+                      className="p-0.5 hover:bg-slate-800 rounded text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                      title={`Sign out (${authenticatedTechnician.email})`}
+                    >
+                      <LogOut className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Quick Actions & Status in requested sequence */}
-          <div className="flex items-center flex-nowrap gap-1.5 sm:gap-2.5 font-mono text-[11px] shrink-0 ml-auto">
-            {/* 1. Searchable Asset Selector Dropdown with responsive width */}
-            <div className="w-[130px] sm:w-[170px] md:w-[200px] lg:w-[240px] shrink-0">
-              <SearchableDropdown
-                options={assetDropdownOptions}
-                value={activeMachineId}
-                onChange={onSelectMachineId}
-                labelPrefix="ASSET:"
-                icon={<Cpu className="w-3.5 h-3.5" />}
-                showAllOption={true}
-                allOptionLabel="ALL ASSETS (Fleet Overview)"
-                allOptionValue="ALL"
-                placeholder="Select Asset..."
-                searchPlaceholder="Search asset by ID or name..."
-                align="left"
-                className="w-full"
-                buttonClassName="w-full"
-              />
-            </div>
+          {/* 1. Searchable Asset Selector Dropdown: Shifted to new row on mobile (< sm), inline on desktop (sm+) */}
+          <div className="w-full sm:w-[170px] md:w-[200px] lg:w-[240px] shrink-0">
+            <SearchableDropdown
+              options={assetDropdownOptions}
+              value={activeMachineId}
+              onChange={onSelectMachineId}
+              labelPrefix="ASSET:"
+              icon={<Cpu className="w-3.5 h-3.5" />}
+              showAllOption={true}
+              allOptionLabel="ALL ASSETS (Fleet Overview)"
+              allOptionValue="ALL"
+              placeholder="Select Asset..."
+              searchPlaceholder="Search asset by ID or name..."
+              align="left"
+              className="w-full"
+              buttonClassName="w-full text-[10px] sm:text-xs px-2 py-1.5"
+            />
+          </div>
 
-            {/* 2. Reset Step Walkthrough Button placed next to Asset Dropdown */}
+          {/* Desktop Quick Actions & Status */}
+          <div className="hidden sm:flex items-center flex-nowrap gap-1.5 sm:gap-2.5 font-mono text-[11px] shrink-0 ml-auto">
+            {/* 2. Reset Step Walkthrough Button */}
             <button
               onClick={onReset}
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 whitespace-nowrap shadow-sm cursor-pointer"
               title="Reset walkthrough demonstration"
             >
               <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -167,11 +203,11 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* 3. Connection Indicator */}
             <div
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0"
               title="Connection status"
             >
               <Database className={`w-3.5 h-3.5 shrink-0 ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
-              <span className={`text-[10px] sm:text-[11px] font-semibold ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span className={`text-[10px] sm:text-[11px] font-semibold hidden sm:inline ${isFirestoreConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {isFirestoreConnected ? 'CONNECTED' : 'DISCONNECTED'}
               </span>
             </div>
@@ -205,8 +241,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Primary View Modes Nav (Dashboard vs Investigation vs Memory vs Assets vs Users) */}
-        <div className="flex items-center py-2 border-b border-slate-900/80 overflow-x-auto scrollbar-none gap-1 sm:gap-2">
-          <div className="flex items-center gap-1.5 font-mono text-xs whitespace-nowrap">
+        <div className="flex items-center py-2 border-b border-slate-900/80 gap-1 sm:gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 font-mono text-xs whitespace-normal sm:whitespace-nowrap w-full overflow-x-auto scrollbar-none">
             <button
               onClick={() => onModeChange('dashboard')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded transition-all cursor-pointer ${
@@ -276,10 +312,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Investigation Pipeline Sub-Bar */}
         {currentMode === 'investigation' && (
-          <nav className="py-2 overflow-x-auto scrollbar-none w-full border-t border-slate-900/80">
+          <nav className="py-2 w-full border-t border-slate-900/80">
             {investigationSubView === 'workflow' ? (
-              <div className="flex items-center justify-between gap-1 sm:gap-1.5 text-[11px] xl:text-xs font-mono whitespace-nowrap w-full">
-                <div className="flex items-center justify-between gap-1 sm:gap-1.5 w-full">
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-between gap-1 sm:gap-1.5 text-[11px] xl:text-xs font-mono whitespace-normal sm:whitespace-nowrap w-full">
+                <div className="flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-between gap-1 sm:gap-1.5 w-full">
                   {STEPS.map((step, idx) => {
                     const isActive = currentStep === step.id;
                     const stepIndex = STEPS.findIndex((s) => s.id === currentStep);

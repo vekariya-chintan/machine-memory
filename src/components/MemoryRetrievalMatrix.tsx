@@ -243,7 +243,7 @@ export const MemoryRetrievalMatrix: React.FC<MemoryRetrievalMatrixProps> = ({
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-1 p-1 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 p-1 bg-slate-950 rounded-lg border border-slate-800 w-full sm:w-auto">
           <button
             onClick={() => setFilter('all')}
             className={`px-3 py-1.5 rounded transition-colors whitespace-nowrap cursor-pointer ${
